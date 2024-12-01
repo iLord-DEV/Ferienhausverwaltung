@@ -139,3 +139,9 @@ function changeYear(year) {
         </div>
     <?php endif; ?>
 </div>
+
+
+<div class="wrap">
+    <h1>Verbrauchsstatistik</h1>
+    <canvas id="verbrauchChart" width="400" height="200"></canvas>
+</div>

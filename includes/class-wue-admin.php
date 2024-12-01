@@ -186,15 +186,7 @@ class WUE_Admin {
     if (!is_user_logged_in()) {
         return;
     }
-
-     // Erfolgsmeldung prüfen und anzeigen
-     $message = get_transient('wue_aufenthalt_message');
-     if ($message === 'success') {
-         delete_transient('wue_aufenthalt_message');
-         echo '<div class="notice notice-success is-dismissible"><p>' . 
-              esc_html__('Aufenthalt wurde erfolgreich gespeichert.', 'wue-nutzerabrechnung') . 
-              '</p></div>';
-     }
+    
     
     $user_id = get_current_user_id();
     
