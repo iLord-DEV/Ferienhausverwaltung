@@ -12,6 +12,9 @@ defined( 'ABSPATH' ) || exit;
  */
 class WUE_Admin {
 
+    // Konstanten für Nonce-Actions
+    const NONCE_AUFENTHALT = 'wue_aufenthalt_action';
+
     /**
      * Konstruktor
      */
@@ -183,25 +186,23 @@ class WUE_Admin {
      */
     public function display_dashboard_widget() {
         // Sicherstellen, dass der aktuelle Benutzer berechtigt ist
-    if (!is_user_logged_in()) {
-        return;
+        if (!is_user_logged_in()) {
+            return;
+        }
+    
+        $user_id = get_current_user_id();
+       
+        $available_years = $this->get_available_years($user_id);
+        $year = isset($_REQUEST['wue_year']) ? intval($_REQUEST['wue_year']) : $available_years[0];
+        
+        // Daten für das Widget vorbereiten
+        $aufenthalte = $this->get_user_aufenthalte($user_id, $year);
+        
+        // Variablen für das Template
+        $current_year = $year;
+        
+        include WUE_PLUGIN_PATH . 'templates/dashboard-widget.php';
     }
-    
-    
-    $user_id = get_current_user_id();
-    
-    // Jahr aus der URL oder Cookie holen, sonst aktuelles Jahr
-    $year = isset($_REQUEST['wue_year']) ? intval($_REQUEST['wue_year']) : date('Y');
-    
-    // Daten für das Widget vorbereiten
-    $available_years = $this->get_available_years($user_id);
-    $aufenthalte = $this->get_user_aufenthalte($user_id, $year);
-    
-    // Variablen für das Template
-    $current_year = $year;
-    
-    include WUE_PLUGIN_PATH . 'templates/dashboard-widget.php';
-}
 
     /**
      * Zeigt die Admin-Hauptseite an
@@ -231,40 +232,56 @@ class WUE_Admin {
         if (!is_user_logged_in()) {
             wp_die(__('Sie müssen angemeldet sein, um diese Seite aufzurufen.', 'wue-nutzerabrechnung'));
         }
- // Initialisiere Variablen
- $aufenthalt = null;
- $aufenthalt_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
- $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
-
- // Wenn ein Aufenthalt bearbeitet werden soll
- if ($action === 'edit' && $aufenthalt_id > 0) {
-    $aufenthalt = $this->get_aufenthalt($aufenthalt_id);
     
-    // Prüfe, ob der Aufenthalt existiert und Benutzer Zugriffsrechte hat
-    if (!$aufenthalt || (!current_user_can('manage_options') && $aufenthalt->mitglied_id !== get_current_user_id())) {
-        wp_die(__('Sie haben keine Berechtigung, diesen Aufenthalt zu bearbeiten.', 'wue-nutzerabrechnung'));
+        // Initialisiere Variablen
+        $aufenthalt = null;
+        $aufenthalt_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
+    
+        // Wenn ein Aufenthalt bearbeitet werden soll
+        if ($action === 'edit' && $aufenthalt_id > 0) {
+            // Debug-Ausgaben
+            error_log('Bearbeite Aufenthalt: ' . $aufenthalt_id);
+            error_log('Eingeloggter User: ' . get_current_user_id());
+            
+            // Prüfe Nonce für Edit-Aktion
+            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], self::NONCE_AUFENTHALT)) {
+                error_log('Nonce check failed');
+                wp_die(__('Sicherheitsüberprüfung fehlgeschlagen.', 'wue-nutzerabrechnung'));
+            }
+        
+            $aufenthalt = $this->get_aufenthalt($aufenthalt_id);
+            error_log('Gefundener Aufenthalt: ' . var_export($aufenthalt, true));  // Detailliertere Debug-Info
+            
+            // Prüfe, ob der Aufenthalt existiert und dem User gehört
+            if (!$aufenthalt || !current_user_can('edit_aufenthalt')) {
+                error_log('Berechtigungsprüfung fehlgeschlagen');
+                error_log('Aufenthalt mitglied_id: ' . ($aufenthalt ? $aufenthalt->mitglied_id : 'null'));
+                error_log('Current user id: ' . get_current_user_id());
+                wp_die(__('Sie haben keine Berechtigung, diesen Aufenthalt zu bearbeiten.', 'wue-nutzerabrechnung'));
+            }
+
+        }
+    
+        // Verarbeite Formularübermittlung
+        if (isset($_POST['submit']) && check_admin_referer(self::NONCE_AUFENTHALT)) {
+            $this->save_aufenthalt($aufenthalt_id);
+        }
+    
+        // Zeige Erfolgsmeldung nach Redirect
+        if (isset($_GET['message']) && $_GET['message'] === 'success') {
+            add_settings_error(
+                'wue_aufenthalt',
+                'save_success',
+                __('Aufenthalt wurde erfolgreich gespeichert.', 'wue-nutzerabrechnung'),
+                'success'
+            );
+        }
+    
+        // Zeige das Formular
+        include WUE_PLUGIN_PATH . 'templates/aufenthalt-form.php';
     }
-}
-
- // Verarbeite Formularübermittlung
- if (isset($_POST['submit']) && check_admin_referer('wue_save_aufenthalt')) {
-     $this->save_aufenthalt($aufenthalt_id);
- }
-
- // Zeige Erfolgsmeldung nach Redirect
- if (isset($_GET['message']) && $_GET['message'] === 'success') {
-     add_settings_error(
-         'wue_aufenthalt',
-         'save_success',
-         __('Aufenthalt wurde erfolgreich gespeichert.', 'wue-nutzerabrechnung'),
-         'success'
-     );
- }
-
- // Zeige das Formular
- include WUE_PLUGIN_PATH . 'templates/aufenthalt-form.php';
-}
-/**
+    /**
      * Speichert oder aktualisiert einen Aufenthalt
      *
      * @param int $aufenthalt_id Optional. Die ID des zu aktualisierenden Aufenthalts
@@ -434,86 +451,80 @@ class WUE_Admin {
         }
     }
 
-    /**
-     * Zeigt die Preiskonfiguration an
-     */
-    public function display_price_settings() {
-        if (!current_user_can('manage_options')) {
-            wp_die(__('Sie haben nicht die erforderlichen Berechtigungen für diese Aktion.', 'wue-nutzerabrechnung'));
-        }
 
-        if (isset($_POST['wue_save_prices']) && check_admin_referer('wue_save_prices')) {
-            $this->save_price_settings();
-        }
 
-        $year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
-        $prices = $this->get_prices_for_year($year);
 
-        include WUE_PLUGIN_PATH . 'templates/price-settings.php';
+/**
+ * Fügt ein neues Jahr hinzu
+ */
+private function add_new_year() {
+    global $wpdb;
+
+    $new_year = isset($_POST['new_year']) ? intval($_POST['new_year']) : 0;
+
+    // Standardwerte festlegen
+    $default_values = array(
+        'jahr' => $new_year,
+        'oelpreis_pro_liter' => 1.00,
+        'uebernachtung_mitglied' => 10.00,
+        'uebernachtung_gast' => 15.00,
+        'verbrauch_pro_brennerstunde' => 2.50
+    );
+
+    // Füge das neue Jahr hinzu
+    $result = $wpdb->insert(
+        $wpdb->prefix . 'wue_preise',
+        $default_values,
+        array('%d', '%f', '%f', '%f', '%f')
+    );
+
+    if ($result === false) {
+        wp_die(__('Fehler beim Hinzufügen des neuen Jahres.', 'wue-nutzerabrechnung'));
     }
 
-    /**
-     * Speichert die Preiseinstellungen
-     */
-    private function save_price_settings() {
-        global $wpdb;
+    // Erfolgsseite anzeigen
+    echo '<div class="notice notice-success is-dismissible">';
+    echo '<p>' . sprintf(__('Jahr %d wurde erfolgreich hinzugefügt.', 'wue-nutzerabrechnung'), $new_year) . '</p>';
+    echo '</div>';
 
-        if (!current_user_can('manage_options')) {
-            wp_die(__('Sie haben nicht die erforderlichen Berechtigungen für diese Aktion.', 'wue-nutzerabrechnung'));
-        }
+    // JavaScript für automatischen Reload
+    echo '<script type="text/javascript">';
+    echo 'setTimeout(function() {';
+    echo '  window.location.href = "' . esc_url(add_query_arg(array(
+        'page' => 'wue-nutzerabrechnung-preise',
+        'year' => $new_year
+    ), admin_url('admin.php'))) . '";';
+    echo '}, 500);'; // kurze Verzögerung, damit die Erfolgsmeldung sichtbar ist
+    echo '</script>';
+}
 
-        $year = isset($_POST['wue_year']) ? intval($_POST['wue_year']) : date('Y');
-        $prices = isset($_POST['wue_prices']) ? map_deep($_POST['wue_prices'], 'floatval') : array();
-
-        $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT id FROM {$wpdb->prefix}wue_preise WHERE jahr = %d",
-            $year
-        ));
-
-        if ($existing) {
-            $result = $wpdb->update(
-                $wpdb->prefix . 'wue_preise',
-                array(
-                    'oelpreis_pro_liter' => $prices['oelpreis_pro_liter'],
-                    'uebernachtung_mitglied' => $prices['uebernachtung_mitglied'],
-                    'uebernachtung_gast' => $prices['uebernachtung_gast'],
-                    'verbrauch_pro_brennerstunde' => $prices['verbrauch_pro_brennerstunde']
-                ),
-                array('jahr' => $year),
-                array('%f', '%f', '%f', '%f'),
-                array('%d')
-            );
-        } else {
-            $result = $wpdb->insert(
-                $wpdb->prefix . 'wue_preise',
-                array(
-                    'jahr' => $year,
-                    'oelpreis_pro_liter' => $prices['oelpreis_pro_liter'],
-                    'uebernachtung_mitglied' => $prices['uebernachtung_mitglied'],
-                    'uebernachtung_gast' => $prices['uebernachtung_gast'],
-                    'verbrauch_pro_brennerstunde' => $prices['verbrauch_pro_brennerstunde']
-                ),
-                array('%d', '%f', '%f', '%f', '%f')
-            );
-        }
-
-        if ($result === false) {
-            add_settings_error(
-                'wue_prices',
-                'save_error',
-                __('Fehler beim Speichern der Preise.', 'wue-nutzerabrechnung'),
-                'error'
-            );
-        } else {
-            add_settings_error(
-                'wue_prices',
-                'save_success',
-                __('Preise wurden erfolgreich gespeichert.', 'wue-nutzerabrechnung'),
-                'success'
-            );
-        }
+/**
+ * Zeigt die Preiskonfiguration an
+ */
+public function display_price_settings() {
+    if (!current_user_can('manage_options')) {
+        wp_die(__('Sie haben nicht die erforderlichen Berechtigungen für diese Aktion.', 'wue-nutzerabrechnung'));
     }
 
+    // Verarbeite das Hinzufügen eines neuen Jahres
+    if (isset($_POST['action']) && $_POST['action'] === 'add_year' && check_admin_referer('wue_add_year')) {
+        $this->add_new_year();
+    }
+
+    // Verarbeite das Speichern der Preise
+    if (isset($_POST['wue_save_prices']) && check_admin_referer('wue_save_prices')) {
+        $this->save_price_settings();
+    }
+
+    // Bestimme das aktuelle Jahr
+    $year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
+    
+    // Hole die Preise für das Jahr
+    $prices = $this->get_prices_for_year($year);
+
+    // Zeige das Template
+    require WUE_PLUGIN_PATH . 'templates/price-settings.php';
+}
     /**
      * Holt die Statistiken für das aktuelle Jahr
      */
@@ -565,14 +576,14 @@ class WUE_Admin {
      * @param int $year Das gewünschte Jahr
      * @return object|null Die Preisdaten oder null
      */
-    private function get_prices_for_year($year) {
-        global $wpdb;
+    // private function get_prices_for_year($year) {
+    //     global $wpdb;
         
-        return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}wue_preise WHERE jahr = %d",
-            $year
-        ));
-    }
+    //     return $wpdb->get_row($wpdb->prepare(
+    //         "SELECT * FROM {$wpdb->prefix}wue_preise WHERE jahr = %d",
+    //         $year
+    //     ));
+    // }
 
     /**
      * Holt die Aufenthalte eines Benutzers
@@ -584,24 +595,175 @@ class WUE_Admin {
     private function get_user_aufenthalte($user_id, $year) {
         global $wpdb;
         
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT a.*, 
+        // Default-Werte definieren
+        $default_prices = array(
+            'oelpreis_pro_liter' => 1.00,
+            'uebernachtung_mitglied' => 10.00,
+            'uebernachtung_gast' => 15.00,
+            'verbrauch_pro_brennerstunde' => 2.50
+        );
+        
+        $query = $wpdb->prepare(
+            "SELECT DISTINCT a.*, 
                 DATEDIFF(a.abreise, a.ankunft) as tage,
                 (a.brennerstunden_ende - a.brennerstunden_start) as brennerstunden,
-                p.oelpreis_pro_liter,
-                p.uebernachtung_mitglied,
-                p.uebernachtung_gast,
-                p.verbrauch_pro_brennerstunde
+                COALESCE(
+                    (
+                        SELECT oelpreis_pro_liter 
+                        FROM {$wpdb->prefix}wue_preise 
+                        ORDER BY ABS(jahr - YEAR(a.ankunft)) ASC
+                        LIMIT 1
+                    ),
+                    %f
+                ) as oelpreis_pro_liter,
+                COALESCE(
+                    (
+                        SELECT uebernachtung_mitglied 
+                        FROM {$wpdb->prefix}wue_preise 
+                        ORDER BY ABS(jahr - YEAR(a.ankunft)) ASC
+                        LIMIT 1
+                    ),
+                    %f
+                ) as uebernachtung_mitglied,
+                COALESCE(
+                    (
+                        SELECT uebernachtung_gast 
+                        FROM {$wpdb->prefix}wue_preise 
+                        ORDER BY ABS(jahr - YEAR(a.ankunft)) ASC
+                        LIMIT 1
+                    ),
+                    %f
+                ) as uebernachtung_gast,
+                COALESCE(
+                    (
+                        SELECT verbrauch_pro_brennerstunde 
+                        FROM {$wpdb->prefix}wue_preise 
+                        ORDER BY ABS(jahr - YEAR(a.ankunft)) ASC
+                        LIMIT 1
+                    ),
+                    %f
+                ) as verbrauch_pro_brennerstunde
             FROM {$wpdb->prefix}wue_aufenthalte a
-            LEFT JOIN {$wpdb->prefix}wue_preise p ON YEAR(a.ankunft) = p.jahr
             WHERE a.mitglied_id = %d 
             AND YEAR(a.ankunft) = %d
             ORDER BY a.ankunft DESC",
+            $default_prices['oelpreis_pro_liter'],
+            $default_prices['uebernachtung_mitglied'],
+            $default_prices['uebernachtung_gast'],
+            $default_prices['verbrauch_pro_brennerstunde'],
             $user_id,
             $year
-        ));
+        );
+    
+        error_log('SQL Query: ' . $query);
+        $results = $wpdb->get_results($query);
+        error_log('Results: ' . print_r($results, true));
+        
+        return $results;
     }
-
+    
+    /**
+     * Holt die Preise für ein bestimmtes Jahr mit Fallback auf Standardwerte
+     *
+     * @param int $year Das gewünschte Jahr
+     * @return object Die Preisdaten (entweder aus der DB oder Standardwerte)
+     */
+    private function get_prices_for_year($year) {
+        global $wpdb;
+        
+        // Erst versuchen wir die Preise aus der Datenbank zu holen
+        $prices = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}wue_preise WHERE jahr = %d",
+            $year
+        ));
+        
+        // Wenn keine Preise gefunden wurden, erstellen wir ein Objekt mit Standardwerten
+        if (!$prices) {
+            $prices = (object) array(
+                'jahr' => $year,
+                'oelpreis_pro_liter' => 1.00,
+                'uebernachtung_mitglied' => 10.00,
+                'uebernachtung_gast' => 15.00,
+                'verbrauch_pro_brennerstunde' => 2.50
+            );
+        }
+        
+        return $prices;
+    }
+    
+    /**
+     * Speichert die Preiseinstellungen
+     */
+    private function save_price_settings() {
+        global $wpdb;
+    
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Sie haben nicht die erforderlichen Berechtigungen für diese Aktion.', 'wue-nutzerabrechnung'));
+        }
+    
+        $year = isset($_POST['wue_year']) ? intval($_POST['wue_year']) : date('Y');
+        $prices = isset($_POST['wue_prices']) ? array_map('floatval', $_POST['wue_prices']) : array();
+    
+        // Validierung der Preise
+        if (empty($prices['oelpreis_pro_liter']) || empty($prices['uebernachtung_mitglied']) || 
+            empty($prices['uebernachtung_gast']) || empty($prices['verbrauch_pro_brennerstunde'])) {
+            add_settings_error(
+                'wue_prices',
+                'invalid_prices',
+                __('Alle Preise müssen größer als 0 sein.', 'wue-nutzerabrechnung'),
+                'error'
+            );
+            return;
+        }
+    
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}wue_preise WHERE jahr = %d",
+            $year
+        ));
+    
+        if ($existing) {
+            $result = $wpdb->update(
+                $wpdb->prefix . 'wue_preise',
+                array(
+                    'oelpreis_pro_liter' => $prices['oelpreis_pro_liter'],
+                    'uebernachtung_mitglied' => $prices['uebernachtung_mitglied'],
+                    'uebernachtung_gast' => $prices['uebernachtung_gast'],
+                    'verbrauch_pro_brennerstunde' => $prices['verbrauch_pro_brennerstunde']
+                ),
+                array('jahr' => $year),
+                array('%f', '%f', '%f', '%f'),
+                array('%d')
+            );
+        } else {
+            $result = $wpdb->insert(
+                $wpdb->prefix . 'wue_preise',
+                array(
+                    'jahr' => $year,
+                    'oelpreis_pro_liter' => $prices['oelpreis_pro_liter'],
+                    'uebernachtung_mitglied' => $prices['uebernachtung_mitglied'],
+                    'uebernachtung_gast' => $prices['uebernachtung_gast'],
+                    'verbrauch_pro_brennerstunde' => $prices['verbrauch_pro_brennerstunde']
+                ),
+                array('%d', '%f', '%f', '%f', '%f')
+            );
+        }
+    
+        if ($result === false) {
+            add_settings_error(
+                'wue_prices',
+                'save_error',
+                __('Fehler beim Speichern der Preise.', 'wue-nutzerabrechnung'),
+                'error'
+            );
+        } else {
+            add_settings_error(
+                'wue_prices',
+                'save_success',
+                __('Preise wurden erfolgreich gespeichert.', 'wue-nutzerabrechnung'),
+                'success'
+            );
+        }
+    }
     /**
      * Holt einen einzelnen Aufenthalt
      *
@@ -611,17 +773,15 @@ class WUE_Admin {
     private function get_aufenthalt($id) {
         global $wpdb;
         
-        $aufenthalt = $wpdb->get_row($wpdb->prepare(
+        $query = $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}wue_aufenthalte WHERE id = %d",
             $id
-        ));
+        );
+        error_log('Aufenthalt Query: ' . $query);
+        $result = $wpdb->get_row($query);
+        error_log('Aufenthalt Result: ' . var_export($result, true));
         
-        // Zugriff erlauben wenn: Admin oder eigener Aufenthalt
-        if ($aufenthalt && (current_user_can('manage_options') || $aufenthalt->mitglied_id === get_current_user_id())) {
-            return $aufenthalt;
-        }
-        
-        return null;
+        return $result;
     }
 
     /**
@@ -633,16 +793,23 @@ class WUE_Admin {
     private function get_available_years($user_id) {
         global $wpdb;
         
-        $years = $wpdb->get_col($wpdb->prepare(
+        error_log('Getting years for user: ' . $user_id);
+        
+        $query = $wpdb->prepare(
             "SELECT DISTINCT YEAR(ankunft) as jahr 
             FROM {$wpdb->prefix}wue_aufenthalte 
             WHERE mitglied_id = %d 
             ORDER BY jahr DESC",
             $user_id
-        ));
+        );
+        error_log('Query: ' . $query);
+        
+        $years = $wpdb->get_col($query);
+        error_log('Found years: ' . print_r($years, true));
         
         if (empty($years)) {
             $years[] = date('Y');
+            error_log('No years found, adding current year');
         }
         
         return $years;

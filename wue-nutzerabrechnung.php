@@ -87,7 +87,26 @@ class WUE_Nutzerabrechnung {
 
         // Optional: Weitere Initialisierungen hinzufügen
     }
+
+   
+    
 }
 
 // Plugin initialisieren
 new WUE_Nutzerabrechnung();
+
+
+/**
+ * Berechtigungen für das Bearbeiten von Aufenthalten hinzufügen
+ */
+function wue_add_edit_capabilities() {
+    // Rollen definieren
+    $roles = [ 'subscriber', 'administrator' ];
+    foreach ( $roles as $role_name ) {
+        $role = get_role( $role_name );
+        if ( $role ) {
+            $role->add_cap( 'edit_aufenthalt' ); // Berechtigung hinzufügen
+        }
+    }
+}
+add_action( 'init', 'wue_add_edit_capabilities' );

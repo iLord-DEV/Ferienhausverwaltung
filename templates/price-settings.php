@@ -6,24 +6,67 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// Hole alle verfügbaren Jahre aus der Datenbank
+global $wpdb;
+$available_years = $wpdb->get_col("
+    SELECT DISTINCT jahr 
+    FROM {$wpdb->prefix}wue_preise 
+    ORDER BY jahr DESC
+");
+
+// Bestimme mögliche neue Jahre (2000 bis aktuelles Jahr + 5)
+$all_possible_years = range(2024, date('Y') + 10);
+$available_new_years = array_diff($all_possible_years, $available_years);
 ?>
 
 <div class="wrap">
     <h1><?php esc_html_e( 'Preiskonfiguration', 'wue-nutzerabrechnung' ); ?></h1>
 
+    <!-- Formular für neues Jahr -->
+    <div class="wue-add-year-form" style="margin: 20px 0; padding: 15px; background: #fff; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+        <h2><?php esc_html_e( 'Neues Jahr hinzufügen', 'wue-nutzerabrechnung' ); ?></h2>
+        <form method="post" class="add-year-form">
+            <?php wp_nonce_field( 'wue_add_year' ); ?>
+            <input type="hidden" name="action" value="add_year">
+            <p>
+                <label for="new_year"><?php esc_html_e( 'Jahr:', 'wue-nutzerabrechnung' ); ?></label>
+                <select name="new_year" id="new_year" class="regular-text">
+                    <?php
+                    foreach ($available_new_years as $new_year) {
+                        printf(
+                            '<option value="%d">%d</option>',
+                            $new_year,
+                            $new_year
+                        );
+                    }
+                    ?>
+                </select>
+                <button type="submit" class="button button-secondary" name="wue_add_year" 
+                    <?php echo empty($available_new_years) ? 'disabled' : ''; ?>>
+                    <?php esc_html_e( 'Jahr hinzufügen', 'wue-nutzerabrechnung' ); ?>
+                </button>
+                <?php if (empty($available_new_years)): ?>
+                    <span class="description">
+                        <?php esc_html_e('Alle möglichen Jahre wurden bereits angelegt.', 'wue-nutzerabrechnung'); ?>
+                    </span>
+                <?php endif; ?>
+            </p>
+        </form>
+    </div>
+
+    <?php if (!empty($available_years)): ?>
     <div class="wue-year-selector" style="margin: 20px 0;">
         <form method="get">
             <input type="hidden" name="page" value="wue-nutzerabrechnung-preise">
             <select name="year" onchange="this.form.submit()">
                 <?php
-                $start_year = 2024;
-                $end_year = intval( date( 'Y' ) ) + 1;
-                for ( $i = $start_year; $i <= $end_year; $i++ ) {
+                foreach ($available_years as $available_year) {
                     printf(
                         '<option value="%d" %s>%d</option>',
-                        $i,
-                        selected( $i, $year, false ),
-                        $i
+                        $available_year,
+                        selected($available_year, $year, false),
+                        $available_year
                     );
                 }
                 ?>
@@ -104,4 +147,9 @@ defined( 'ABSPATH' ) || exit;
 
         <?php submit_button( __( 'Preise speichern', 'wue-nutzerabrechnung' ), 'primary', 'wue_save_prices' ); ?>
     </form>
+    <?php else: ?>
+        <div class="notice notice-warning">
+            <p><?php esc_html_e('Bitte fügen Sie zunächst ein Jahr hinzu.', 'wue-nutzerabrechnung'); ?></p>
+        </div>
+    <?php endif; ?>
 </div>

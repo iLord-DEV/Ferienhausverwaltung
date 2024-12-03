@@ -18,7 +18,7 @@ $form_title = $is_edit ? __('Aufenthalt bearbeiten', 'wue-nutzerabrechnung') : _
     <?php settings_errors('wue_aufenthalt'); ?>
 
     <form method="post" action="" class="wue-aufenthalt-form">
-        <?php wp_nonce_field('wue_save_aufenthalt'); ?>
+    <?php wp_nonce_field(WUE_Admin::NONCE_AUFENTHALT); ?>
         
         <?php if ($is_edit) : ?>
             <input type="hidden" name="wue_aufenthalt[id]" value="<?php echo esc_attr($aufenthalt->id); ?>">
