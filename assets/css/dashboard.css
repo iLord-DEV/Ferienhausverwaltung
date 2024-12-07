@@ -1,0 +1,27 @@
+.wue-dashboard-widget .wue-year-selector {
+  margin-bottom: 15px;
+}
+
+/* Tabellen-Styling */
+.wue-dashboard-widget table td,
+.wue-dashboard-widget table th {
+  padding: 8px;
+  text-align: left;
+}
+
+/* Spalten-spezifisches Alignment */
+.wue-dashboard-widget .column-brenner,
+.wue-dashboard-widget .column-oil,
+.wue-dashboard-widget .column-total {
+  text-align: right;
+}
+
+.wue-dashboard-widget .column-members,
+.wue-dashboard-widget .column-guests {
+  text-align: left;
+}
+
+/* Zusammenfassungsbereich */
+.wue-dashboard-widget .wue-summary {
+  margin-top: 10px;
+}
