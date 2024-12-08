@@ -24,45 +24,110 @@ define( 'WUE_VERSION', '1.0.0' );
  * Hauptklasse für das Plugin
  */
 class WUE_Nutzerabrechnung {
-	private $wue_db;
+	/**
+	 * Die einzige Instanz dieser Klasse
+	 *
+	 * @var WUE_Nutzerabrechnung
+	 */
+	private static $instance = null;
+
+	/**
+	 * Komponenten-Instanzen
+	 */
+	private $db;
+	/**
+	 * Helper instance
+	 *
+	 * @var WUE_Helpers
+	 */
+	private $helpers;
+
+	/**
+	 * Admin instance
+	 *
+	 * @var WUE_Admin
+	 */
+	private $admin;
+
+	/**
+	 * Dashboard instance
+	 *
+	 * @var WUE_Dashboard
+	 */
+	private $dashboard;
+
+	/**
+	 * Aufenthalte instance
+	 *
+	 * @var WUE_Aufenthalte
+	 */
+	private $aufenthalte;
+
+	/**
+	 * Tankfuellungen instance
+	 *
+	 * @var WUE_Tankfuellungen
+	 */
+	private $tankfuellungen;
+
+	/**
+	 * Preise instance
+	 *
+	 * @var WUE_Preise
+	 */
+	private $preise;
+
 	/**
 	 * Konstruktor
 	 */
-	public function __construct() {
+	private function __construct() {
 		$this->load_dependencies();
 		$this->initialize_components();
 	}
+
+	/**
+	 * Singleton-Instanz zurückgeben
+	 *
+	 * @return WUE_Nutzerabrechnung
+	 */
+	public static function get_instance() {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+		return self::$instance;
+	}
+
 	/**
 	 * Lädt erforderliche Abhängigkeiten
 	 */
 	private function load_dependencies() {
-		// Admin-Klassen.
+		// Admin-Klassen
 		$admin_files = array(
 			'admin/class-wue-admin.php',
 			'admin/class-wue-dashboard.php',
 		);
 
-		// Core-Klassen.
+		// Core-Klassen
 		$core_files = array(
 			'core/class-wue-aufenthalte.php',
 			'core/class-wue-tankfuellungen.php',
 			'core/class-wue-preise.php',
 		);
 
-		// Datenbank-Klassen.
+		// Datenbank-Klassen
 		$db_files = array(
 			'db/class-wue-db.php',
 		);
 
-		// Helper-Klassen.
+		// Helper-Klassen
 		$helper_files = array(
 			'helpers/class-wue-helpers.php',
 		);
 
-		// Alle Dateien zusammenführen.
+		// Alle Dateien zusammenführen
 		$all_files = array_merge( $admin_files, $core_files, $db_files, $helper_files );
 
-		// Dateien laden.
+		// Dateien laden
 		foreach ( $all_files as $file ) {
 			$path = WUE_PLUGIN_PATH . 'includes/' . $file;
 			if ( file_exists( $path ) ) {
@@ -77,41 +142,81 @@ class WUE_Nutzerabrechnung {
 	 * Initialisiert Plugin-Komponenten
 	 */
 	private function initialize_components() {
-		// Admin-Bereich initialisieren.
-		$admin = new WUE_Admin();
-		// Dashboard initialisieren.
-		$dashboard = new WUE_Dashboard();
+		// Basis-Komponenten
+		$this->db      = new WUE_DB();
+		$this->helpers = new WUE_Helpers();
 
-		// Aktivierungshook registrieren.
-		register_activation_hook( WUE_PLUGIN_FILE, array( $admin, 'activate_plugin' ) );
+		// Core-Komponenten
+		$this->aufenthalte = new WUE_Aufenthalte();
+		// $this->tankfuellungen = new WUE_Tankfuellungen();
+		// $this->preise         = new WUE_Preise();
 
-		// Optional: Weitere Initialisierungen hinzufügen.
+		// Admin-Komponenten
+		$this->admin     = new WUE_Admin();
+		$this->dashboard = new WUE_Dashboard();
+
+		// Aktivierungshook registrieren
+		register_activation_hook( WUE_PLUGIN_FILE, array( $this->admin, 'activate_plugin' ) );
+	}
+
+	/**
+	 * Getter für Komponenten
+	 */
+	public function get_db() {
+		return $this->db;
+	}
+
+	public function get_helpers() {
+		return $this->helpers;
+	}
+
+	public function get_aufenthalte() {
+		return $this->aufenthalte;
+	}
+
+	public function get_tankfuellungen() {
+		return $this->tankfuellungen;
+	}
+
+	public function get_preise() {
+		return $this->preise;
 	}
 }
 
-// Plugin initialisieren.
-new WUE_Nutzerabrechnung();
+/**
+ * Globale Funktion zum Zugriff auf Plugin-Funktionalitäten
+ *
+ * @return WUE_Nutzerabrechnung
+ */
+function WUE() {
+	return WUE_Nutzerabrechnung::get_instance();
+}
 
+// Plugin initialisieren
+WUE();
 
 /**
  * Berechtigungen für das Bearbeiten von Aufenthalten hinzufügen
  */
 function wue_add_edit_capabilities() {
-	// Rollen definieren.
 	$roles = array( 'subscriber', 'administrator' );
 	foreach ( $roles as $role_name ) {
 		$role = get_role( $role_name );
 		if ( $role ) {
-			$role->add_cap( 'edit_aufenthalt' ); // Berechtigung hinzufügen.
+			$role->add_cap( 'edit_aufenthalt' );
 		}
 	}
 }
 add_action( 'init', 'wue_add_edit_capabilities' );
 
-
-add_action(
-	'init',
-	function () {
-		load_plugin_textdomain( 'query-monitor', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
-	}
-);
+/**
+ * Textdomain laden
+ */
+function wue_load_textdomain() {
+	load_plugin_textdomain(
+		'wue-nutzerabrechnung',
+		false,
+		dirname( plugin_basename( __FILE__ ) ) . '/languages/'
+	);
+}
+add_action( 'init', 'wue_load_textdomain' );

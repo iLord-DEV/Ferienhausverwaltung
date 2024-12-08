@@ -18,7 +18,7 @@ $available_years = $wpdb->get_col(
 );
 
 // Bestimme mögliche neue Jahre (2000 bis aktuelles Jahr + 5)
-$all_possible_years  = range( 2024, date( 'Y' ) + 10 );
+$all_possible_years  = range( 2024, gmdate( 'Y' ) + 10 );
 $available_new_years = array_diff( $all_possible_years, $available_years );
 ?>
 
@@ -38,8 +38,8 @@ $available_new_years = array_diff( $all_possible_years, $available_years );
 					foreach ( $available_new_years as $new_year ) {
 						printf(
 							'<option value="%d">%d</option>',
-							$new_year,
-							$new_year
+							esc_attr( $new_year ),
+							esc_attr( $new_year )
 						);
 					}
 					?>
@@ -66,9 +66,9 @@ $available_new_years = array_diff( $all_possible_years, $available_years );
 				foreach ( $available_years as $available_year ) {
 					printf(
 						'<option value="%d" %s>%d</option>',
-						$available_year,
+						esc_attr( $available_year ),
 						selected( $available_year, $year, false ),
-						$available_year
+						esc_attr( $available_year )
 					);
 				}
 				?>

@@ -22,8 +22,10 @@ class WUE_DB {
 	public function get_user_aufenthalte( $user_id, $year ) {
 		global $wpdb;
 
-		$query = $wpdb->prepare(
-			"SELECT a.*, 
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT 
+                a.*, 
                 TIMESTAMPDIFF(DAY, a.ankunft, a.abreise) as tage,
                 (a.brennerstunden_ende - a.brennerstunden_start) as brennerstunden,
                 p.oelpreis_pro_liter,
@@ -35,11 +37,10 @@ class WUE_DB {
             WHERE a.mitglied_id = %d 
             AND YEAR(a.ankunft) = %d
             ORDER BY a.ankunft DESC",
-			$user_id,
-			$year
+				$user_id,
+				$year
+			)
 		);
-
-		return $wpdb->get_results( $query );
 	}
 
 	/**
@@ -51,18 +52,18 @@ class WUE_DB {
 	public function get_available_years( $user_id ) {
 		global $wpdb;
 
-		$query = $wpdb->prepare(
-			"SELECT DISTINCT YEAR(ankunft) as jahr 
+		$years = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT YEAR(ankunft) as jahr 
             FROM {$wpdb->prefix}wue_aufenthalte 
             WHERE mitglied_id = %d 
             ORDER BY jahr DESC",
-			$user_id
+				$user_id
+			)
 		);
 
-		$years = $wpdb->get_col( $query );
-
 		if ( empty( $years ) ) {
-			$years[] = date( 'Y' );
+			$years[] = gmdate( 'Y' );
 		}
 
 		return $years;
@@ -70,6 +71,8 @@ class WUE_DB {
 
 	/**
 	 * Erstellt die erforderlichen Datenbanktabellen
+	 *
+	 * @return void
 	 */
 	public function create_tables() {
 		global $wpdb;
@@ -130,7 +133,9 @@ class WUE_DB {
 
 		$exists = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$wpdb->prefix}wue_preise WHERE jahr = %d",
+				"SELECT COUNT(*) 
+            FROM {$wpdb->prefix}wue_preise 
+            WHERE jahr = %d",
 				$year
 			)
 		);
@@ -150,5 +155,171 @@ class WUE_DB {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Holt einen einzelnen Aufenthalt
+	 *
+	 * @param int $id Die ID des Aufenthalts
+	 * @return object|null Aufenthaltsdaten oder null
+	 */
+	public function get_aufenthalt( $id ) {
+		global $wpdb;
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * 
+            FROM {$wpdb->prefix}wue_aufenthalte 
+            WHERE id = %d",
+				$id
+			)
+		);
+	}
+
+	/**
+	 * Holt Statistiken für ein Jahr
+	 *
+	 * @param int $year Das Jahr für die Statistiken
+	 * @return array Array mit statistischen Daten
+	 */
+	public function get_yearly_statistics( $year ) {
+		global $wpdb;
+
+		$stats = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT 
+                SUM(brennerstunden_ende - brennerstunden_start) as total_brennerstunden,
+                SUM(anzahl_mitglieder) as member_nights,
+                SUM(anzahl_gaeste) as guest_nights
+            FROM {$wpdb->prefix}wue_aufenthalte 
+            WHERE YEAR(ankunft) = %d",
+				$year
+			),
+			ARRAY_A
+		);
+
+		if ( ! $stats ) {
+			return array(
+				'total_brennerstunden' => 0,
+				'member_nights'        => 0,
+				'guest_nights'         => 0,
+				'oil_consumption'      => 0,
+			);
+		}
+
+		$prices                   = $this->get_prices_for_year( $year );
+		$stats['oil_consumption'] = $stats['total_brennerstunden'] *
+			( $prices ? $prices->verbrauch_pro_brennerstunde : 0 );
+
+		return $stats;
+	}
+
+	/**
+	 * Holt die Preise für ein bestimmtes Jahr
+	 *
+	 * @param int $year Das Jahr für die Preise
+	 * @return object Preisobjekt mit Standardwerten wenn nicht gefunden
+	 */
+	public function get_prices_for_year( $year ) {
+		global $wpdb;
+
+		$prices = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * 
+            FROM {$wpdb->prefix}wue_preise 
+            WHERE jahr = %d",
+				$year
+			)
+		);
+
+		if ( ! $prices ) {
+			$prices = (object) array(
+				'jahr'                        => $year,
+				'oelpreis_pro_liter'          => 1.00,
+				'uebernachtung_mitglied'      => 10.00,
+				'uebernachtung_gast'          => 15.00,
+				'verbrauch_pro_brennerstunde' => 2.50,
+			);
+		}
+
+		return $prices;
+	}
+
+	/**
+	 * Speichert oder aktualisiert einen Aufenthalt
+	 *
+	 * @param array $data Die zu speichernden Daten
+	 * @param int   $aufenthalt_id Optional. Die ID des zu aktualisierenden Aufenthalts
+	 * @return bool|int False bei Fehler, bei Update: true bei Erfolg, bei Insert: ID
+	 */
+	public function save_aufenthalt( $data, $aufenthalt_id = 0 ) {
+		global $wpdb;
+
+		if ( $aufenthalt_id > 0 ) {
+			return $wpdb->update(
+				$wpdb->prefix . 'wue_aufenthalte',
+				$data,
+				array( 'id' => $aufenthalt_id ),
+				array( '%d', '%s', '%s', '%f', '%f', '%d', '%d' ),
+				array( '%d' )
+			);
+		}
+
+		$result = $wpdb->insert(
+			$wpdb->prefix . 'wue_aufenthalte',
+			$data,
+			array( '%d', '%s', '%s', '%f', '%f', '%d', '%d' )
+		);
+
+		return $result ? $wpdb->insert_id : false;
+	}
+
+	/**
+	 * Speichert eine Tankfüllung
+	 *
+	 * @param array $data Die zu speichernden Daten
+	 * @return bool|int False bei Fehler, Insert ID bei Erfolg
+	 */
+	public function save_tankfuellung( $data ) {
+		global $wpdb;
+
+		$result = $wpdb->insert(
+			$wpdb->prefix . 'wue_tankfuellungen',
+			$data,
+			array( '%s', '%f', '%f', '%f' )
+		);
+
+		return $result ? $wpdb->insert_id : false;
+	}
+
+	/**
+	 * Speichert Preiseinstellungen
+	 *
+	 * @param int   $year Das Jahr für die Preise
+	 * @param array $prices Die zu speichernden Preisdaten
+	 * @return bool|int False bei Fehler, bei Update: affected rows, bei Insert: ID
+	 */
+	public function save_price_settings( $year, $prices ) {
+		global $wpdb;
+
+		$existing = $this->get_prices_for_year( $year );
+
+		if ( $existing && isset( $existing->jahr ) ) {
+			return $wpdb->update(
+				$wpdb->prefix . 'wue_preise',
+				$prices,
+				array( 'jahr' => $year ),
+				array( '%f', '%f', '%f', '%f' ),
+				array( '%d' )
+			);
+		}
+
+		$prices['jahr'] = $year;
+		$result         = $wpdb->insert(
+			$wpdb->prefix . 'wue_preise',
+			$prices,
+			array( '%d', '%f', '%f', '%f', '%f' )
+		);
+
+		return $result ? $wpdb->insert_id : false;
 	}
 }
