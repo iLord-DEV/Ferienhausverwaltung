@@ -46,18 +46,13 @@ class WUE_Aufenthalte {
 	 * Fügt Menüpunkte hinzu
 	 */
 	public function add_menu_items() {
-		add_action(
-			'wue_admin_menu',
-			function () {
-				add_submenu_page(
-					'wue-nutzerabrechnung',
-					esc_html__( 'Aufenthalt erfassen', 'wue-nutzerabrechnung' ),
-					esc_html__( 'Aufenthalt erfassen', 'wue-nutzerabrechnung' ),
-					'read',
-					'wue-aufenthalt-erfassen',
-					array( $this, 'render_form_page' )
-				);
-			}
+		add_submenu_page(
+			'wue-nutzerabrechnung',
+			esc_html__( 'Aufenthalt erfassen', 'wue-nutzerabrechnung' ),
+			esc_html__( 'Aufenthalt erfassen', 'wue-nutzerabrechnung' ),
+			'read',
+			'wue-aufenthalt-erfassen',
+			array( $this, 'render_form_page' )
 		);
 	}
 
