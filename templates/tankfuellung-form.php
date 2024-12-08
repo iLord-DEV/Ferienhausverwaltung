@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 	<?php settings_errors( 'wue_tankfuellung' ); ?>
 
 	<form method="post" action="">
-		<?php wp_nonce_field( 'wue_save_tankfuellung' ); ?>
+		<?php wp_nonce_field( WUE_Tankfuellungen::NONCE_ACTION ); ?>
 		
 		<table class="form-table">
 			<tr>

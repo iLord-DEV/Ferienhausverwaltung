@@ -75,16 +75,6 @@ class WUE_Admin {
 			'dashicons-chart-area'
 		);
 
-		// Untermenü für Tankfüllungen
-		add_submenu_page(
-			'wue-nutzerabrechnung',
-			esc_html__( 'Tankfüllung erfassen', 'wue-nutzerabrechnung' ),
-			esc_html__( 'Tankfüllung erfassen', 'wue-nutzerabrechnung' ),
-			'read',
-			'wue-tankfuellungen',
-			array( $this, 'display_tankfuellung_form' )
-		);
-
 		// Preiskonfiguration (nur für Administratoren)
 		add_submenu_page(
 			'wue-nutzerabrechnung',
@@ -116,78 +106,9 @@ class WUE_Admin {
 		include WUE_PLUGIN_PATH . 'templates/admin-page.php';
 	}
 
-	/**
-	 * Zeigt das Formular zur Tankfüllungserfassung an
-	 */
-	public function display_tankfuellung_form() {
-		if ( ! is_user_logged_in() ) {
-			wp_die( esc_html__( 'Sie müssen angemeldet sein, um diese Seite aufzurufen.', 'wue-nutzerabrechnung' ) );
-		}
 
-		// Verarbeite Formularübermittlung
-		if ( isset( $_POST['submit'] ) && check_admin_referer( 'wue_save_tankfuellung' ) ) {
-			$this->save_tankfuellung();
-		}
 
-		include WUE_PLUGIN_PATH . 'templates/tankfuellung-form.php';
-	}
 
-	/**
-	 * Speichert eine neue Tankfüllung
-	 */
-	private function save_tankfuellung() {
-		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce(
-			sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ),
-			'wue_save_tankfuellung'
-		) ) {
-			wp_die( esc_html__( 'Sicherheitsüberprüfung fehlgeschlagen.', 'wue-nutzerabrechnung' ) );
-		}
-
-		$tankfuellung = isset( $_POST['wue_tankfuellung'] ) ?
-			array_map( 'sanitize_text_field', wp_unslash( $_POST['wue_tankfuellung'] ) ) :
-			array();
-
-		// Validiere und bereinige die Eingaben
-		$data = array(
-			'datum'                => sanitize_text_field( $tankfuellung['datum'] ),
-			'liter'                => floatval( $tankfuellung['liter'] ),
-			'preis_pro_liter'      => floatval( $tankfuellung['preis_pro_liter'] ),
-			'brennerstunden_stand' => floatval( $tankfuellung['brennerstunden_stand'] ),
-		);
-
-		// Grundlegende Validierung
-		if ( $data['liter'] <= 0 || $data['preis_pro_liter'] <= 0 ) {
-			add_settings_error(
-				'wue_tankfuellung',
-				'invalid_values',
-				esc_html__( 'Bitte geben Sie gültige Werte für Liter und Preis ein.', 'wue-nutzerabrechnung' ),
-				'error'
-			);
-			return;
-		}
-
-		$result = $this->db->save_tankfuellung( $data );
-
-		if ( false === $result ) {
-			add_settings_error(
-				'wue_tankfuellung',
-				'save_error',
-				esc_html__( 'Fehler beim Speichern der Tankfüllung.', 'wue-nutzerabrechnung' ),
-				'error'
-			);
-		} else {
-			wp_safe_redirect(
-				add_query_arg(
-					array(
-						'page'    => 'wue-tankfuellungen',
-						'message' => 'success',
-					),
-					admin_url( 'admin.php' )
-				)
-			);
-			exit;
-		}
-	}
 
 	/**
 	 * Zeigt die Preiskonfiguration an

@@ -147,8 +147,8 @@ class WUE_Nutzerabrechnung {
 		$this->helpers = new WUE_Helpers();
 
 		// Core-Komponenten
-		$this->aufenthalte = new WUE_Aufenthalte();
-		// $this->tankfuellungen = new WUE_Tankfuellungen();
+		$this->aufenthalte    = new WUE_Aufenthalte();
+		$this->tankfuellungen = new WUE_Tankfuellungen();
 		// $this->preise         = new WUE_Preise();
 
 		// Admin-Komponenten
