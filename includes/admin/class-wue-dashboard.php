@@ -11,13 +11,48 @@ class WUE_Dashboard {
 	private $db;
 
 	public function __construct() {
-
 		$this->db = new WUE_DB();
 		add_action( 'wp_dashboard_setup', array( $this, 'add_dashboard_widgets' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_styles' ) );
+		add_action( 'admin_head-index.php', array( $this, 'modify_dashboard_layout' ) );
+	}
+
+	public function modify_dashboard_layout() {
+		?>
+		<style>
+			#dashboard-widgets .postbox-container {
+				width: 100% !important;
+			}
+			#dashboard-widgets #normal-sortables {
+				width: 100% !important;
+			}
+			#wue_nutzerabrechnung_widget {
+				width: 100% !important;
+				max-width: none !important;
+				margin-right: 0 !important;
+			}
+		</style>
+		<?php
+	}
+
+	public function enqueue_styles() {
+		if ( ! defined( 'WUE_PLUGIN_URL' ) ) {
+			error_log( 'WUE_PLUGIN_URL is not defined!' );
+			return;
+		}
+
+		$style_url = WUE_PLUGIN_URL . 'assets/css/dist/main.css';
+		error_log( 'Loading styles from: ' . $style_url );
+
+		wp_enqueue_style(
+			'wue-tailwind-styles',
+			$style_url,
+			array(),
+			WUE_VERSION
+		);
 	}
 
 	public function add_dashboard_widgets() {
-
 		wp_add_dashboard_widget(
 			'wue_nutzerabrechnung_widget',
 			__( 'Meine Aufenthalte und Kosten', 'wue-nutzerabrechnung' ),
@@ -26,9 +61,8 @@ class WUE_Dashboard {
 	}
 
 	public function render_dashboard_widget() {
-
 		if ( ! is_user_logged_in() ) {
-			return;
+				return;
 		}
 
 		$user_id = get_current_user_id();
@@ -41,14 +75,14 @@ class WUE_Dashboard {
 
 		// Summen berechnen.
 		$sums = ( ! empty( $aufenthalte ) )
-			? WUE_Helpers::calculate_sums( $aufenthalte )
-			: array(
-				'brennerstunden' => '0,0',
-				'oelkosten'      => '0,00 €',
-				'mitglieder'     => '0 Übern. (0,00 €)',
-				'gaeste'         => '0 Übern. (0,00 €)',
-				'gesamt'         => '0,00 €',
-			);
+		? WUE_Helpers::calculate_sums( $aufenthalte )
+		: array(
+			'brennerstunden' => '0,0',
+			'oelkosten'      => '0,00 €',
+			'mitglieder'     => '0 Übern. (0,00 €)',
+			'gaeste'         => '0 Übern. (0,00 €)',
+			'gesamt'         => '0,00 €',
+		);
 
 		// Template einbinden.
 		include WUE_PLUGIN_PATH . 'templates/dashboard-widget.php';

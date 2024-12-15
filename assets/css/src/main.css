@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Styles */
+@layer components {
+  .wue-table {
+    @apply tw-min-w-full tw-divide-y tw-divide-gray-200;
+  }
+  .wue-table-header {
+    @apply tw-px-3 tw-py-2 tw-text-left tw-text-sm tw-font-semibold tw-text-gray-900;
+  }
+  .wue-table-cell {
+    @apply tw-px-3 tw-py-2 tw-text-sm tw-text-gray-500;
+  }
+}

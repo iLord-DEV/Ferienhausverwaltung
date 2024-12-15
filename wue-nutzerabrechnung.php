@@ -29,9 +29,20 @@ require_once WUE_PLUGIN_PATH . 'includes/wue-core-functions.php';
  *
  * @return WUE_Nutzerabrechnung
  */
-function WUE() {
+function wue_get_instance() {
 	return WUE_Nutzerabrechnung::get_instance();
 }
 
+
+/**
+ * Legacy-Funktion für Abwärtskompatibilität
+ *
+ * @deprecated Verwende stattdessen wue_get_instance()
+ * @return WUE_Nutzerabrechnung
+ */
+function WUE() {
+	return wue_get_instance();
+}
+
 // Plugin initialisieren
-WUE();
+wue_get_instance();

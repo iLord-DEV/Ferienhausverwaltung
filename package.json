@@ -1,10 +1,13 @@
 {
-  "name": "wp-plugin-dev",
+  "name": "wuestenstein-app",
   "version": "1.0.0",
   "scripts": {
-    "watch": "browser-sync start --config bs-config.js"
+    "watch": "browser-sync start --config bs-config.js",
+    "build": "tailwindcss -i ./assets/css/src/main.css -o ./assets/css/dist/main.css",
+    "watch:css": "tailwindcss -i ./assets/css/src/main.css -o ./assets/css/dist/main.css --watch"
   },
   "devDependencies": {
-    "browser-sync": "^2.29.3"
+    "browser-sync": "^2.29.3",
+    "tailwindcss": "^3.4.1"
   }
 }
