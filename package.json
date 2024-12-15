@@ -2,12 +2,14 @@
   "name": "wuestenstein-app",
   "version": "1.0.0",
   "scripts": {
-    "watch": "browser-sync start --config bs-config.js",
-    "build": "tailwindcss -i ./assets/css/src/main.css -o ./assets/css/dist/main.css",
-    "watch:css": "tailwindcss -i ./assets/css/src/main.css -o ./assets/css/dist/main.css --watch"
+    "watch:browser": "browser-sync start --config bs-config.js",
+    "watch:css": "tailwindcss -i ./assets/css/src/main.css -o ./assets/css/dist/main.css --watch",
+    "watch": "concurrently \"npm run watch:browser\" \"npm run watch:css\"",
+    "build": "tailwindcss -i ./assets/css/src/main.css -o ./assets/css/dist/main.css"
   },
   "devDependencies": {
     "browser-sync": "^2.29.3",
+    "concurrently": "^9.1.0",
     "tailwindcss": "^3.4.1"
   }
 }

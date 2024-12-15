@@ -3,6 +3,8 @@
  * Admin-Funktionalitäten für die Nutzerabrechnung
  *
  * @package WueNutzerabrechnung
+ * @param string $hook The current admin page hook.
+ * @param string $hook The current admin page hook.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -29,13 +31,28 @@ class WUE_Admin {
 
 	/**
 	 * Initialisiert Admin-Funktionalitäten
+	 *
+	 * @param string $hook The current admin page hook.
 	 */
-	public function init_admin() {
-		// CSS einbinden
+	public function init_admin( $hook ) {
+		// Nur auf Plugin-Seiten oder Dashboard laden
+		if ( false === strpos( $hook, 'wue-' ) && 'index.php' !== $hook ) {
+			return;
+		}
+
+		// Tailwind Styles
+		wp_enqueue_style(
+			'wue-tailwind-styles',
+			WUE_PLUGIN_URL . 'assets/css/dist/main.css',
+			array(),
+			WUE_VERSION
+		);
+
+		// Bestehende Admin Styles
 		wp_register_style(
 			'wue-admin-style',
 			WUE_PLUGIN_URL . 'assets/css/admin.css',
-			array(),
+			array( 'wue-tailwind-styles' ), // Tailwind als Abhängigkeit
 			WUE_VERSION
 		);
 		wp_enqueue_style( 'wue-admin-style' );
@@ -86,12 +103,15 @@ class WUE_Admin {
 	public function display_admin_page() {
 		$yearly_stats = $this->db->get_yearly_statistics( gmdate( 'Y' ) );
 		$prices       = $this->db->get_prices_for_year( gmdate( 'Y' ) );
+		// Berechne Kosten pro Brennerstunde
+		$cost_per_hour = $prices->verbrauch_pro_brennerstunde * $prices->oelpreis_pro_liter;
 
 		// Konvertierung ins Array-Format für das Template
 		$current_prices = array(
-			'oil_price'    => $prices->oelpreis_pro_liter,
-			'member_price' => $prices->uebernachtung_mitglied,
-			'guest_price'  => $prices->uebernachtung_gast,
+			'oil_price'     => $prices->oelpreis_pro_liter,
+			'member_price'  => $prices->uebernachtung_mitglied,
+			'guest_price'   => $prices->uebernachtung_gast,
+			'cost_per_hour' => $cost_per_hour,
 		);
 
 		include WUE_PLUGIN_PATH . 'templates/admin-page.php';

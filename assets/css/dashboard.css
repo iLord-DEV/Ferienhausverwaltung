@@ -25,3 +25,15 @@
 .wue-dashboard-widget .wue-summary {
   margin-top: 10px;
 }
+
+#dashboard-widgets .postbox-container {
+  width: 100% !important;
+}
+#dashboard-widgets #normal-sortables {
+  width: 100% !important;
+}
+#wue_nutzerabrechnung_widget {
+  width: 100% !important;
+  max-width: none !important;
+  margin-right: 0 !important;
+}
