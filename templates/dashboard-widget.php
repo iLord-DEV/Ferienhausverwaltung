@@ -18,10 +18,10 @@ defined( 'ABSPATH' ) || exit;
 	<div class="wue-year-selector">
 		<form method="get">
 			<select name="wue_year" id="wue-year-selector" onchange="this.form.submit()">
-				<?php foreach ( $available_years as $year ) : ?>
-					<option value="<?php echo esc_attr( $year ); ?>" 
-							<?php selected( $year, $current_year ); ?>>
-						<?php echo esc_html( $year ); ?>
+				<?php foreach ( $available_years as $available_year ) : ?>
+					<option value="<?php echo esc_attr( $available_year ); ?>" 
+							<?php selected( $available_year, $current_year ); ?>>
+						<?php echo esc_html( $available_year ); ?>
 					</option>
 				<?php endforeach; ?>
 			</select>

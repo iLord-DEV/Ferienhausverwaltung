@@ -27,8 +27,8 @@ defined( 'ABSPATH' ) || exit;
 						<?php
 						printf(
 							esc_html__( 'Mitglieder: %1$d, Gäste: %2$d', 'wue-nutzerabrechnung' ),
-							$yearly_stats['member_nights'],
-							$yearly_stats['guest_nights']
+							esc_html( $yearly_stats['member_nights'] ),
+							esc_html( $yearly_stats['guest_nights'] )
 						);
 						?>
 					</p>
@@ -40,8 +40,8 @@ defined( 'ABSPATH' ) || exit;
 						<?php
 						printf(
 							esc_html__( 'Öl: %1$.2f €/L, Mitglieder: %2$.2f €/Nacht', 'wue-nutzerabrechnung' ),
-							$current_prices['oil_price'],
-							$current_prices['member_price']
+							esc_html( $current_prices['oil_price'] ),
+							esc_html( $current_prices['member_price'] )
 						);
 						?>
 					</p>
@@ -57,9 +57,11 @@ defined( 'ABSPATH' ) || exit;
 					<?php esc_html_e( 'Aufenthalt erfassen', 'wue-nutzerabrechnung' ); ?>
 				</a>
 				
-				<a href="<?php echo esc_url( admin_url( 'admin.php?page=wue-nutzerabrechnung-preise' ) ); ?>" class="button">
-					<?php esc_html_e( 'Preise verwalten', 'wue-nutzerabrechnung' ); ?>
-				</a>
+				<?php if ( current_user_can( 'wue_manage_prices' ) ) : ?>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=wue-nutzerabrechnung-preise' ) ); ?>" class="button">
+						<?php esc_html_e( 'Preise verwalten', 'wue-nutzerabrechnung' ); ?>
+					</a>
+				<?php endif; ?>
 
 				<a href="<?php echo esc_url( admin_url( 'admin.php?page=wue-tankfuellungen' ) ); ?>" class="button">
 					<?php esc_html_e( 'Tankfüllung erfassen', 'wue-nutzerabrechnung' ); ?>

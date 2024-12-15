@@ -1,0 +1,10 @@
+{
+  "name": "wp-plugin-dev",
+  "version": "1.0.0",
+  "scripts": {
+    "watch": "browser-sync start --config bs-config.js"
+  },
+  "devDependencies": {
+    "browser-sync": "^2.29.3"
+  }
+}

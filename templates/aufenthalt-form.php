@@ -147,30 +147,3 @@ $form_title = $is_edit ? __( 'Aufenthalt bearbeiten', 'wue-nutzerabrechnung' ) :
 		</div>
 	</form>
 </div>
-
-<script>
-jQuery(document).ready(function($) {
-	// Automatische Berechnung der Übernachtungen
-	$('#abreise').on('change', function() {
-		var ankunft = new Date($('#ankunft').val());
-		var abreise = new Date($('#abreise').val());
-		var naechte = Math.ceil((abreise - ankunft) / (1000 * 60 * 60 * 24));
-		
-		// Vorschlag für Mitgliederübernachtungen wenn noch leer
-		if (!$('#anzahl_mitglieder').val()) {
-			$('#anzahl_mitglieder').val(naechte);
-		}
-	});
-
-	// Validierung der Brennerstunden
-	$('#brennerstunden_ende').on('change', function() {
-		var start = parseFloat($('#brennerstunden_start').val());
-		var ende = parseFloat($(this).val());
-		
-		if (ende <= start) {
-			alert('Die Brennerstunden bei Abreise müssen höher sein als bei Ankunft.');
-			$(this).val('');
-		}
-	});
-});
-</script>

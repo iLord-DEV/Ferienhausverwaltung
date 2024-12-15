@@ -25,7 +25,7 @@ defined( 'ABSPATH' ) || exit;
 					<input type="date" 
 						id="datum" 
 						name="wue_tankfuellung[datum]" 
-						value="<?php echo esc_attr( date( 'Y-m-d' ) ); ?>" 
+						value="<?php echo esc_attr( gmdate( 'Y-m-d' ) ); ?>" 
 						required 
 						class="regular-text">
 				</td>
