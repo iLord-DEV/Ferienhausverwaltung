@@ -39,6 +39,7 @@ class WUE_Aufenthalte {
 			add_action( 'admin_init', array( $this, 'handle_form_submissions' ) );
 			add_action( 'wue_admin_menu', array( $this, 'add_menu_items' ) );
 			add_filter( 'wue_dashboard_data', array( $this, 'add_dashboard_data' ) );
+			add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		}
 	}
 
@@ -54,6 +55,34 @@ class WUE_Aufenthalte {
 			'wue-aufenthalt-erfassen',
 			array( $this, 'render_form_page' )
 		);
+	}
+
+	/**
+	 * Registriert und lädt Assets
+	 */
+	public function enqueue_scripts() {
+		// Nur auf der Aufenthalts-Formular-Seite laden
+		$screen = get_current_screen();
+		if ( $screen && 'nutzerabrechnung_page_wue-aufenthalt-erfassen' === $screen->id ) {
+			wp_enqueue_script(
+				'wue-aufenthalte-form',
+				WUE_PLUGIN_URL . 'assets/js/admin/aufenthalte.js',
+				array( 'jquery' ),
+				WUE_VERSION,
+				true
+			);
+
+			// Lokalisierung für JavaScript
+			wp_localize_script(
+				'wue-aufenthalte-form',
+				'wueAufenthalte',
+				array(
+					'i18n' => array(
+						'brennerstundenError' => __( 'Die Brennerstunden bei Abreise müssen höher sein als bei Ankunft.', 'wue-nutzerabrechnung' ),
+					),
+				)
+			);
+		}
 	}
 
 	/**
@@ -141,8 +170,9 @@ class WUE_Aufenthalte {
 	 * @return bool
 	 */
 	private function can_edit_aufenthalt( $aufenthalt ) {
-		return current_user_can( 'edit_aufenthalt' ) ||
-				(int) $aufenthalt->mitglied_id === get_current_user_id();
+		return current_user_can( 'wue_manage_stays' ) &&
+				( current_user_can( 'wue_view_all_stats' ) ||
+				(int) $aufenthalt->mitglied_id === get_current_user_id() );
 	}
 
 	/**

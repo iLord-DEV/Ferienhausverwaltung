@@ -58,6 +58,7 @@ class WUE_Admin {
 	public function activate_plugin() {
 		$this->db->create_tables();
 		$this->db->insert_default_prices( gmdate( 'Y' ) );
+		wue_add_capabilities();
 		flush_rewrite_rules();
 	}
 
@@ -73,16 +74,6 @@ class WUE_Admin {
 			'wue-nutzerabrechnung',
 			array( $this, 'display_admin_page' ),
 			'dashicons-chart-area'
-		);
-
-		// Preiskonfiguration (nur für Administratoren)
-		add_submenu_page(
-			'wue-nutzerabrechnung',
-			esc_html__( 'Preiskonfiguration', 'wue-nutzerabrechnung' ),
-			esc_html__( 'Preiskonfiguration', 'wue-nutzerabrechnung' ),
-			'manage_options',
-			'wue-nutzerabrechnung-preise',
-			array( $this, 'display_price_settings' )
 		);
 
 		// Hook für zusätzliche Menüeinträge
@@ -110,33 +101,7 @@ class WUE_Admin {
 
 
 
-	/**
-	 * Zeigt die Preiskonfiguration an
-	 */
-	public function display_price_settings() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'Sie haben nicht die erforderlichen Berechtigungen für diese Aktion.', 'wue-nutzerabrechnung' ) );
-		}
 
-		// Verarbeite das Hinzufügen eines neuen Jahres
-		if ( isset( $_POST['action'] ) && 'add_year' === $_POST['action'] && check_admin_referer( 'wue_add_year' ) ) {
-			$this->add_new_year();
-		}
-
-		// Verarbeite das Speichern der Preise
-		if ( isset( $_POST['wue_save_prices'] ) && check_admin_referer( 'wue_save_prices' ) ) {
-			$this->save_price_settings();
-		}
-
-		// Bestimme das aktuelle Jahr
-		$year = isset( $_GET['year'] ) ? intval( $_GET['year'] ) : gmdate( 'Y' );
-
-		// Hole die Preise für das Jahr
-		$prices = $this->db->get_prices_for_year( $year );
-
-		// Zeige das Template
-		require WUE_PLUGIN_PATH . 'templates/price-settings.php';
-	}
 
 	/**
 	 * Fügt ein neues Jahr hinzu
@@ -166,51 +131,5 @@ class WUE_Admin {
 			)
 		);
 		exit;
-	}
-
-	/**
-	 * Speichert die Preiseinstellungen
-	 */
-	private function save_price_settings() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'Sie haben nicht die erforderlichen Berechtigungen für diese Aktion.', 'wue-nutzerabrechnung' ) );
-		}
-
-		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ), 'wue_save_prices' ) ) {
-			wp_die( esc_html__( 'Sicherheitsüberprüfung fehlgeschlagen.', 'wue-nutzerabrechnung' ) );
-		}
-
-		$year   = isset( $_POST['wue_year'] ) ? intval( $_POST['wue_year'] ) : gmdate( 'Y' );
-		$prices = isset( $_POST['wue_prices'] ) ? array_map( 'floatval', wp_unslash( $_POST['wue_prices'] ) ) : array();
-
-		// Validierung der Preise
-		if ( empty( $prices['oelpreis_pro_liter'] ) || empty( $prices['uebernachtung_mitglied'] ) ||
-			empty( $prices['uebernachtung_gast'] ) || empty( $prices['verbrauch_pro_brennerstunde'] ) ) {
-			add_settings_error(
-				'wue_prices',
-				'invalid_prices',
-				esc_html__( 'Alle Preise müssen größer als 0 sein.', 'wue-nutzerabrechnung' ),
-				'error'
-			);
-			return;
-		}
-
-		$result = $this->db->save_price_settings( $year, $prices );
-
-		if ( false === $result ) {
-			add_settings_error(
-				'wue_prices',
-				'save_error',
-				esc_html__( 'Fehler beim Speichern der Preise.', 'wue-nutzerabrechnung' ),
-				'error'
-			);
-		} else {
-			add_settings_error(
-				'wue_prices',
-				'save_success',
-				esc_html__( 'Preise wurden erfolgreich gespeichert.', 'wue-nutzerabrechnung' ),
-				'success'
-			);
-		}
 	}
 }

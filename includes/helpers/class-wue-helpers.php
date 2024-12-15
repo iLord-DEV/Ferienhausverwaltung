@@ -7,6 +7,9 @@
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * Hilfsfunktionen für die Nutzerabrechnung
+ */
 class WUE_Helpers {
 
 	/**
@@ -97,7 +100,7 @@ class WUE_Helpers {
 		$brennerstunden = floatval( $aufenthalt->brennerstunden_ende ) - floatval( $aufenthalt->brennerstunden_start );
 
 		// Preis für das Jahr holen
-		$prices = WUE()->get_db()->get_prices_for_year( date( 'Y', strtotime( $aufenthalt->ankunft ) ) );
+		$prices = WUE()->get_db()->get_prices_for_year( gmdate( 'Y', strtotime( $aufenthalt->ankunft ) ) );
 
 		// Ölkosten berechnen
 		$oelkosten = $brennerstunden * $prices->verbrauch_pro_brennerstunde * $prices->oelpreis_pro_liter;

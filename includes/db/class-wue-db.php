@@ -70,6 +70,22 @@ class WUE_DB {
 	}
 
 	/**
+	 * Holt alle verfügbaren Jahre für die Preiskonfiguration
+	 *
+	 * @return array Array mit Jahren
+	 */
+	public function get_available_price_years() {
+		global $wpdb;
+		return $wpdb->get_col(
+			"SELECT DISTINCT jahr 
+            FROM {$wpdb->prefix}wue_preise 
+            ORDER BY jahr DESC"
+		);
+	}
+
+
+
+	/**
 	 * Erstellt die erforderlichen Datenbanktabellen
 	 *
 	 * @return void
