@@ -7,18 +7,32 @@
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * Class WUE_Dashboard
+ *
+ * Handles the dashboard functionalities for user billing.
+ *
+ * @package WueNutzerabrechnung
+ */
 class WUE_Dashboard {
+	/**
+	 * Database instance.
+	 *
+	 * @var WUE_DB
+	 */
 	private $db;
 
+	/**
+	 * WUE_Dashboard constructor.
+	 */
 	public function __construct() {
 		$this->db = new WUE_DB();
 		add_action( 'wp_dashboard_setup', array( $this, 'add_dashboard_widgets' ) );
 	}
 
-
-
-
-
+	/**
+	 * Adds a dashboard widget for user billing.
+	 */
 	public function add_dashboard_widgets() {
 		wp_add_dashboard_widget(
 			'wue_nutzerabrechnung_widget',
@@ -27,6 +41,9 @@ class WUE_Dashboard {
 		);
 	}
 
+	/**
+	 * Renders the dashboard widget for user billing.
+	 */
 	public function render_dashboard_widget() {
 		if ( ! is_user_logged_in() ) {
 				return;
@@ -34,7 +51,7 @@ class WUE_Dashboard {
 
 		$user_id = get_current_user_id();
 
-		$current_year = isset( $_GET['wue_year'] ) ? intval( $_GET['wue_year'] ) : date( 'Y' );
+		$current_year = isset( $_GET['wue_year'] ) ? intval( $_GET['wue_year'] ) : gmdate( 'Y' );
 
 		// Daten laden.
 		$aufenthalte     = $this->db->get_user_aufenthalte( $user_id, $current_year );

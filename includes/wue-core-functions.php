@@ -25,8 +25,8 @@ function wue_add_capabilities() {
 	// Berechtigungen für Administratoren
 	$admin = get_role( 'administrator' );
 	if ( $admin ) {
-		$admin->add_cap( 'wue_manage_stays' );
-		$admin->add_cap( 'wue_manage_fuel' );
+		$admin->add_cap( 'wue_manage_stays' );     // Aufenthalte verwalten
+		$admin->add_cap( 'wue_manage_fuel' );       // Tankfüllungen verwalten
 		$admin->add_cap( 'wue_manage_prices' );     // Preise verwalten
 		$admin->add_cap( 'wue_view_all_stats' );    // Alle Statistiken sehen
 		$admin->add_cap( 'wue_export_data' );       // Datenexport
