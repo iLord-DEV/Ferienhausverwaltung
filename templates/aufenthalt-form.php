@@ -1,7 +1,6 @@
 <?php
 /**
  * Template für das Aufenthalts-Formular
- * Unterstützt Erstellen und Bearbeiten von Aufenthalten
  *
  * @package WueNutzerabrechnung
  */
@@ -17,14 +16,12 @@ $form_title = $is_edit ? __( 'Aufenthalt bearbeiten', 'wue-nutzerabrechnung' ) :
 		<?php echo esc_html( $form_title ); ?>
 	</h1>
 
-	<?php settings_errors( 'wue_aufenthalt' ); ?>
-
 	<div class="tw-bg-white tw-rounded-lg tw-shadow-sm tw-p-6">
 		<form method="post" action="" class="wue-aufenthalt-form">
 			<?php wp_nonce_field( WUE_Aufenthalte::NONCE_ACTION ); ?>
 			
 			<?php if ( $is_edit ) : ?>
-				<input type="hidden" name="wue_aufenthalt[id]" value="<?php echo esc_attr( $aufenthalt->id ); ?>">
+				<input type="hidden" name="aufenthalt_id" value="<?php echo esc_attr( $aufenthalt->id ); ?>">
 			<?php endif; ?>
 
 			<!-- Zwei Spalten für Ankunft/Abreise -->
@@ -131,7 +128,7 @@ $form_title = $is_edit ? __( 'Aufenthalt bearbeiten', 'wue-nutzerabrechnung' ) :
 				submit_button(
 					$is_edit ? __( 'Änderungen speichern', 'wue-nutzerabrechnung' ) : __( 'Aufenthalt speichern', 'wue-nutzerabrechnung' ),
 					'primary tw-bg-blue-600',
-					'submit'
+					'wue_aufenthalt_submit'  // Dies ist der wichtige Teil - der Name des Submit-Buttons
 				);
 				?>
 

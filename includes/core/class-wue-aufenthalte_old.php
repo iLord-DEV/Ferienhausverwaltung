@@ -100,19 +100,57 @@ class WUE_Aufenthalte {
 	}
 
 	/**
-	 * Verarbeitet Formular-Submissions
+	 * Verarbeitet Formularübermittlungen
 	 */
 	public function handle_form_submissions() {
-		if ( ! isset( $_POST['wue_aufenthalt_submit'] ) ) {
-			return;
-		}
+		if ( isset( $_POST['action'] ) && $_POST['action'] === 'save_aufenthalt' ) {
+			check_admin_referer( self::NONCE_ACTION );
 
-		if ( ! check_admin_referer( self::NONCE_ACTION ) ) {
-			wp_die( esc_html__( 'Sicherheitsüberprüfung fehlgeschlagen.', 'wue-nutzerabrechnung' ) );
-		}
+			$start_date     = sanitize_text_field( $_POST['start_date'] );
+			$end_date       = sanitize_text_field( $_POST['end_date'] );
+			$brennerstunden = intval( $_POST['brennerstunden'] );
 
-		$aufenthalt_id = isset( $_POST['aufenthalt_id'] ) ? intval( $_POST['aufenthalt_id'] ) : 0;
-		$this->save_aufenthalt( $aufenthalt_id );
+			$this->recalculate_overlapping_hours( $start_date, $end_date, $brennerstunden );
+
+			$this->db->save_entry(
+				array(
+					'start_date'     => $start_date,
+					'end_date'       => $end_date,
+					'brennerstunden' => $brennerstunden,
+				)
+			);
+		}
+	}
+
+	/**
+	 * Berechnet die überlappenden Stunden neu
+	 */
+	private function recalculate_overlapping_hours( $start_date, $end_date, &$brennerstunden ) {
+		$overlaps = $this->db->get_overlapping_entries( $start_date, $end_date );
+
+		if ( ! empty( $overlaps ) ) {
+			$shared_hours = $brennerstunden / ( count( $overlaps ) + 1 );
+
+			foreach ( $overlaps as $overlap ) {
+				$this->update_entry_shared_hours( $overlap, $shared_hours );
+			}
+
+			$brennerstunden -= $shared_hours * count( $overlaps );
+		}
+	}
+
+	/**
+	 * Aktualisiert die gemeinsamen Stunden für einen Aufenthalt
+	 */
+	private function update_entry_shared_hours( $entry, $shared_hours ) {
+		$entry_brennerstunden = $entry['brennerstunden'] - $entry['shared_hours'] + $shared_hours;
+		$this->db->update_entry(
+			$entry['id'],
+			array(
+				'shared_hours'   => $shared_hours,
+				'brennerstunden' => $entry_brennerstunden,
+			)
+		);
 	}
 
 	/**
@@ -379,42 +417,72 @@ class WUE_Aufenthalte {
 	/**
 	 * Aktualisiert andere betroffene Aufenthalte
 	 */
+	/**
+	 * Aktualisiert andere betroffene Aufenthalte
+	 *
+	 * @param array $overlaps Array mit Überlappungsdaten
+	 */
 	private function update_affected_stays( $overlaps ) {
 		if ( empty( $overlaps ) ) {
 			return;
 		}
 
+		error_log( '=== Start Aktualisierung betroffener Aufenthalte ===' );
 		$processed_ids = array();
 
+		// Sammle alle betroffenen Aufenthalts-IDs
+		$affected_ids = array();
 		foreach ( $overlaps as $overlap ) {
-			$stay_ids = array( $overlap['aufenthalt_id_1'], $overlap['aufenthalt_id_2'] );
-
-			foreach ( $stay_ids as $stay_id ) {
-				if ( in_array( $stay_id, $processed_ids ) ) {
-					continue;
-				}
-
-				$stay = $this->db->get_aufenthalt( $stay_id );
-				if ( ! $stay ) {
-					continue;
-				}
-
-				$overlapping = $this->db->find_overlapping_stays(
-					$stay->ankunft,
-					$stay->abreise,
-					$stay->id
-				);
-
-				$calc_result = WUE_Helpers::calculate_shared_hours( $stay, $overlapping );
-				$this->db->update_adjusted_hours(
-					$stay->id,
-					$calc_result['adjusted_hours'],
-					! empty( $calc_result['overlaps'] )
-				);
-
-				$processed_ids[] = $stay->id;
-			}
+			$affected_ids[] = $overlap['aufenthalt_id_1'];
+			$affected_ids[] = $overlap['aufenthalt_id_2'];
 		}
+		$affected_ids = array_unique( $affected_ids );
+
+		error_log( 'Betroffene Aufenthalte: ' . print_r( $affected_ids, true ) );
+
+		// Aktualisiere jeden betroffenen Aufenthalt
+		foreach ( $affected_ids as $stay_id ) {
+			if ( in_array( $stay_id, $processed_ids ) ) {
+				continue;
+			}
+
+			$stay = $this->db->get_aufenthalt( $stay_id );
+			if ( ! $stay ) {
+				continue;
+			}
+
+			error_log( 'Bearbeite Aufenthalt ' . $stay_id );
+
+			// Finde ALLE Überlappungen für diesen Aufenthalt
+			$all_overlapping = $this->db->find_overlapping_stays(
+				$stay->ankunft,
+				$stay->abreise,
+				$stay->id
+			);
+
+			error_log( 'Gefundene Überlappungen: ' . count( $all_overlapping ) );
+
+			// Neue Berechnung durchführen
+			$calc_result = WUE_Helpers::calculate_shared_hours( $stay, $all_overlapping );
+
+			error_log( 'Neue bereinigte Stunden: ' . $calc_result['adjusted_hours'] );
+
+			// Aktualisiere den Aufenthalt
+			$this->db->update_adjusted_hours(
+				$stay->id,
+				$calc_result['adjusted_hours'],
+				! empty( $calc_result['overlaps'] )
+			);
+
+			// Aktualisiere die Überlappungsdaten
+			foreach ( $calc_result['overlaps'] as $new_overlap ) {
+				$this->db->save_overlap( $new_overlap );
+			}
+
+			$processed_ids[] = $stay->id;
+		}
+
+		error_log( '=== Ende Aktualisierung betroffener Aufenthalte ===' );
 	}
 
 	/**

@@ -387,6 +387,8 @@ class WUE_DB {
 		return $result ? $wpdb->insert_id : false;
 	}
 
+
+
 	public function find_overlapping_stays( $start_date, $end_date, $exclude_id = 0 ) {
 		global $wpdb;
 		return $wpdb->get_results(
@@ -402,30 +404,12 @@ class WUE_DB {
 		);
 	}
 
-	/***
-	 * Speichert die Überlappungsinformation
-	 */
 	public function save_overlap( $data ) {
 		global $wpdb;
-
-		// Lösche alte Überlappungen für diesen Aufenthalt
-		$wpdb->delete(
-			$wpdb->prefix . 'wue_aufenthalte_overlapping',
-			array( 'aufenthalt_id' => $data['aufenthalt_id'] ),
-			array( '%d' )
-		);
-
-		// Speichere neue Überlappung
 		return $wpdb->insert(
 			$wpdb->prefix . 'wue_aufenthalte_overlapping',
-			array(
-				'aufenthalt_id' => $data['aufenthalt_id'],
-				'brenner_start' => $data['brenner_start'],
-				'brenner_end'   => $data['brenner_end'],
-				'num_users'     => $data['num_users'],
-				'shared_hours'  => $data['shared_hours'],
-			),
-			array( '%d', '%f', '%f', '%d', '%f' )
+			$data,
+			array( '%d', '%d', '%s', '%s', '%f' )
 		);
 	}
 
@@ -497,5 +481,29 @@ class WUE_DB {
 			array( '%f', '%d' ),
 			array( '%d' )
 		);
+	}
+
+	public function update_overlap_table() {
+		global $wpdb;
+		$charset_collate = $wpdb->get_charset_collate();
+
+		// Alte Tabelle löschen
+		$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}wue_aufenthalte_overlapping" );
+
+		// Neue Tabelle erstellen
+		$sql = "CREATE TABLE {$wpdb->prefix}wue_aufenthalte_overlapping (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            aufenthalt_id mediumint(9) NOT NULL,
+            brenner_start decimal(10,2) NOT NULL,
+            brenner_end decimal(10,2) NOT NULL,
+            num_users int NOT NULL,
+            shared_hours decimal(10,2) NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY aufenthalt_id (aufenthalt_id)
+        ) $charset_collate;";
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( $sql );
 	}
 }
