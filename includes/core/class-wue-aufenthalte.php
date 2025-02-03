@@ -384,36 +384,49 @@ class WUE_Aufenthalte {
 			return;
 		}
 
-		$processed_ids = array();
-
+		// First, collect all affected stay IDs from the overlaps
+		$affected_ids = array();
 		foreach ( $overlaps as $overlap ) {
-			$stay_ids = array( $overlap['aufenthalt_id_1'], $overlap['aufenthalt_id_2'] );
-
-			foreach ( $stay_ids as $stay_id ) {
-				if ( in_array( $stay_id, $processed_ids ) ) {
-					continue;
-				}
-
-				$stay = $this->db->get_aufenthalt( $stay_id );
-				if ( ! $stay ) {
-					continue;
-				}
-
-				$overlapping = $this->db->find_overlapping_stays(
+			$affected_ids[] = $overlap['aufenthalt_id'];
+			// Find all stays that overlap with the current stay's time period
+			$stay = $this->db->get_aufenthalt( $overlap['aufenthalt_id'] );
+			if ( $stay ) {
+				$overlapping_stays = $this->db->find_overlapping_stays(
 					$stay->ankunft,
 					$stay->abreise,
-					$stay->id
+					0 // Don't exclude any stays to get all overlaps
 				);
-
-				$calc_result = WUE_Helpers::calculate_shared_hours( $stay, $overlapping );
-				$this->db->update_adjusted_hours(
-					$stay->id,
-					$calc_result['adjusted_hours'],
-					! empty( $calc_result['overlaps'] )
-				);
-
-				$processed_ids[] = $stay->id;
+				foreach ( $overlapping_stays as $overlap_stay ) {
+					$affected_ids[] = $overlap_stay->id;
+				}
 			}
+		}
+
+		// Remove duplicates and process each affected stay
+		$affected_ids = array_unique( $affected_ids );
+
+		foreach ( $affected_ids as $stay_id ) {
+			$stay = $this->db->get_aufenthalt( $stay_id );
+			if ( ! $stay ) {
+				continue;
+			}
+
+			// Find all stays that overlap with this stay
+			$overlapping = $this->db->find_overlapping_stays(
+				$stay->ankunft,
+				$stay->abreise,
+				$stay->id
+			);
+
+			// Recalculate hours for this stay
+			$calc_result = WUE_Helpers::calculate_shared_hours( $stay, $overlapping );
+
+			// Update the stay with new calculated hours
+			$this->db->update_adjusted_hours(
+				$stay->id,
+				$calc_result['adjusted_hours'],
+				! empty( $overlapping )
+			);
 		}
 	}
 

@@ -310,9 +310,9 @@ class WUE_DB {
 		global $wpdb;
 
 		// Debug-Output
-		error_log( 'Debug WUE_DB::save_aufenthalt - Received data:' );
-		error_log( print_r( $data, true ) );
-		error_log( 'Aufenthalt ID: ' . $aufenthalt_id );
+		// error_log( 'Debug WUE_DB::save_aufenthalt - Received data:' );
+		// error_log( print_r( $data, true ) );
+		// error_log( 'Aufenthalt ID: ' . $aufenthalt_id );
 
 		if ( $aufenthalt_id > 0 ) {
 			$result = $wpdb->update(
@@ -322,7 +322,7 @@ class WUE_DB {
 				array( '%d', '%s', '%s', '%f', '%f', '%f', '%d', '%d', '%d' ),
 				array( '%d' )
 			);
-			error_log( 'Update result: ' . var_export( $result, true ) );
+			// error_log( 'Update result: ' . var_export( $result, true ) );
 			return $result;
 		}
 
@@ -332,8 +332,8 @@ class WUE_DB {
 			array( '%d', '%s', '%s', '%f', '%f', '%f', '%d', '%d', '%d' )
 		);
 
-		error_log( 'Insert result: ' . var_export( $result, true ) );
-		error_log( 'Last error: ' . $wpdb->last_error );
+		// error_log( 'Insert result: ' . var_export( $result, true ) );
+		// error_log( 'Last error: ' . $wpdb->last_error );
 
 		return $result ? $wpdb->insert_id : false;
 	}
