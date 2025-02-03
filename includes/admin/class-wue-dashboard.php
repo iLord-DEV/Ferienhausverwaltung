@@ -28,6 +28,7 @@ class WUE_Dashboard {
 	public function __construct() {
 		$this->db = new WUE_DB();
 		add_action( 'wp_dashboard_setup', array( $this, 'add_dashboard_widgets' ) );
+		add_action( 'admin_init', array( $this, 'handle_delete_request' ) );
 	}
 
 	/**
@@ -39,6 +40,28 @@ class WUE_Dashboard {
 			__( 'Meine Aufenthalte und Kosten', 'wue-nutzerabrechnung' ),
 			array( $this, 'render_dashboard_widget' )
 		);
+	}
+
+	/**
+	 * Handles deletion requests for stays
+	 */
+	public function handle_delete_request() {
+		if ( ! isset( $_POST['action'] ) || 'delete_aufenthalt' !== $_POST['action'] ) {
+			return;
+		}
+
+		$aufenthalt_id = isset( $_POST['aufenthalt_id'] ) ? intval( $_POST['aufenthalt_id'] ) : 0;
+		if ( ! $aufenthalt_id || ! wp_verify_nonce( $_POST['_wpnonce'], 'delete_aufenthalt_' . $aufenthalt_id ) ) {
+			wp_die( esc_html__( 'Sicherheitsüberprüfung fehlgeschlagen.', 'wue-nutzerabrechnung' ) );
+		}
+
+		$result = WUE()->get_aufenthalte()->delete_aufenthalt( $aufenthalt_id );
+		if ( $result ) {
+			wp_safe_redirect( add_query_arg( 'message', 'deleted', admin_url( 'index.php' ) ) );
+			exit;
+		}
+
+		wp_die( esc_html__( 'Fehler beim Löschen des Aufenthalts.', 'wue-nutzerabrechnung' ) );
 	}
 
 	/**

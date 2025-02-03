@@ -37,6 +37,19 @@ function wue_add_capabilities() {
 }
 
 /**
+ * Prüft, ob der aktuelle Benutzer die Berechtigung hat, einen Aufenthalt zu bearbeiten
+ *
+ * @param WUE_Aufenthalt $aufenthalt Der Aufenthalt
+ *
+ * @return bool
+ */
+function wue_check_aufenthalt_permission( $aufenthalt ) {
+	return current_user_can( 'wue_manage_stays' ) &&
+			( current_user_can( 'wue_view_all_stats' ) ||
+			(int) get_current_user_id() === (int) $aufenthalt->mitglied_id );
+}
+
+/**
  * Textdomain laden
  */
 function wue_load_textdomain() {

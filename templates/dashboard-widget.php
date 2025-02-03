@@ -117,10 +117,21 @@
 									<?php echo esc_html( $berechnungen['gesamt'] ); ?>
 								</td>
 								<td class="tw-px-4 tw-py-3 tw-text-right">
-									<a href="<?php echo esc_url( $berechnungen['edit_url'] ); ?>" 
-										class="tw-inline-flex tw-items-center tw-px-3 tw-py-1 tw-rounded-md tw-text-sm tw-font-medium tw-text-blue-700 tw-bg-blue-50 hover:tw-bg-blue-100">
-										<?php esc_html_e( 'Bearbeiten', 'wue-nutzerabrechnung' ); ?>
-									</a>
+								<div class="tw-flex tw-gap-2">
+										<a href="<?php echo esc_url( $berechnungen['edit_url'] ); ?>" 
+											class="tw-inline-flex tw-items-center tw-px-3 tw-py-1 tw-rounded-md tw-text-sm tw-font-medium tw-text-blue-700 tw-bg-blue-50 hover:tw-bg-blue-100">
+											<?php esc_html_e( 'Bearbeiten', 'wue-nutzerabrechnung' ); ?>
+										</a>
+										<form method="post" class="tw-inline" onsubmit="return confirm('<?php esc_attr_e( 'Möchten Sie diesen Aufenthalt wirklich löschen?', 'wue-nutzerabrechnung' ); ?>');">
+											<?php wp_nonce_field( 'delete_aufenthalt_' . $aufenthalt->id ); ?>
+											<input type="hidden" name="action" value="delete_aufenthalt">
+											<input type="hidden" name="aufenthalt_id" value="<?php echo esc_attr( $aufenthalt->id ); ?>">
+											<button type="submit" 
+												class="tw-inline-flex tw-items-center tw-px-3 tw-py-1 tw-rounded-md tw-text-sm tw-font-medium tw-text-red-700 tw-bg-red-50 hover:tw-bg-red-100">
+												<?php esc_html_e( 'Löschen', 'wue-nutzerabrechnung' ); ?>
+											</button>
+										</form>
+									</div>
 								</td>
 							</tr>
 						<?php endforeach; ?>

@@ -165,6 +165,63 @@ class WUE_Aufenthalte {
 	}
 
 	/**
+	 * Deletes a stay and recalculates affected stays
+	 *
+	 * @param int $id The stay ID to delete
+	 * @return bool True if the stay was deleted successfully, false otherwise
+	 */
+	public function delete_aufenthalt( $id ) {
+		global $wpdb;
+
+		$aufenthalt = $this->db->get_aufenthalt( $id );
+
+		if ( ! $aufenthalt || ! wue_check_aufenthalt_permission( $aufenthalt ) ) {
+			return false;
+		}
+
+		$overlapping_stays = $this->db->find_overlapping_stays(
+			$aufenthalt->ankunft,
+			$aufenthalt->abreise,
+			$aufenthalt->id
+		);
+
+		$wpdb->delete(
+			$wpdb->prefix . 'wue_aufenthalte_overlapping',
+			array( 'aufenthalt_id_1' => $id ),
+			array( '%d' )
+		);
+		$wpdb->delete(
+			$wpdb->prefix . 'wue_aufenthalte_overlapping',
+			array( 'aufenthalt_id_2' => $id ),
+			array( '%d' )
+		);
+
+		$result = $wpdb->delete(
+			$wpdb->prefix . 'wue_aufenthalte',
+			array( 'id' => $id ),
+			array( '%d' )
+		);
+
+		if ( $result && ! empty( $overlapping_stays ) ) {
+			foreach ( $overlapping_stays as $stay ) {
+				$new_overlapping = $this->db->find_overlapping_stays(
+					$stay->ankunft,
+					$stay->abreise,
+					0
+				);
+				$calc_result     = WUE_Helpers::calculate_shared_hours( $stay, $new_overlapping );
+				$this->db->update_adjusted_hours(
+					$stay->id,
+					$calc_result['adjusted_hours'],
+					! empty( $new_overlapping )
+				);
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Validiert die Aufenthaltsdaten und prüft auf Überlappungen
 	 */
 	private function validate_aufenthalt( $aufenthalt, $aufenthalt_id = 0 ) {
