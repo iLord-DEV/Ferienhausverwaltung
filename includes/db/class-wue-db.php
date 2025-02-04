@@ -130,18 +130,15 @@ class WUE_DB {
 
 		// Überlappungs-Tabelle
 		$sql_overlapping = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wue_aufenthalte_overlapping (
-        id mediumint(9) NOT NULL AUTO_INCREMENT,
-        aufenthalt_id_1 mediumint(9) NOT NULL,
-        aufenthalt_id_2 mediumint(9) NOT NULL,
-        overlap_start date NOT NULL,
-        overlap_end date NOT NULL,
-        shared_hours decimal(10,2) NOT NULL,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY aufenthalt_id_1 (aufenthalt_id_1),
-        KEY aufenthalt_id_2 (aufenthalt_id_2),
-        UNIQUE KEY unique_overlap (aufenthalt_id_1, aufenthalt_id_2)
-    ) $charset_collate;";
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            aufenthalt_id mediumint(9) NOT NULL,
+            overlap_start date NOT NULL,
+            overlap_end date NOT NULL,
+            shared_hours decimal(10,2) NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY aufenthalt_id (aufenthalt_id)
+        ) $charset_collate;";
 
 		// Tankfüllungen-Tabelle
 		$sql_tankfuellungen = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wue_tankfuellungen (
@@ -402,6 +399,30 @@ class WUE_DB {
 		);
 	}
 
+
+	public function update_overlap_table() {
+		global $wpdb;
+		$charset_collate = $wpdb->get_charset_collate();
+
+		// Alte Tabelle löschen
+		$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}wue_aufenthalte_overlapping" );
+
+		// Neue Tabelle erstellen
+		$sql = "CREATE TABLE {$wpdb->prefix}wue_aufenthalte_overlapping (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            aufenthalt_id mediumint(9) NOT NULL,
+            overlap_start date NOT NULL,
+            overlap_end date NOT NULL,
+            shared_hours decimal(10,2) NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY aufenthalt_id (aufenthalt_id)
+        ) $charset_collate;";
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( $sql );
+	}
+
 	/***
 	 * Speichert die Überlappungsinformation
 	 */
@@ -415,19 +436,26 @@ class WUE_DB {
 			array( '%d' )
 		);
 
-		// Speichere neue Überlappung
-		return $wpdb->insert(
+		// Speichere neue Überlappung mit korrekten Spaltennamen
+		$result = $wpdb->insert(
 			$wpdb->prefix . 'wue_aufenthalte_overlapping',
 			array(
 				'aufenthalt_id' => $data['aufenthalt_id'],
-				'brenner_start' => $data['brenner_start'],
-				'brenner_end'   => $data['brenner_end'],
-				'num_users'     => $data['num_users'],
+				'overlap_start' => $data['overlap_start'],
+				'overlap_end'   => $data['overlap_end'],
 				'shared_hours'  => $data['shared_hours'],
 			),
-			array( '%d', '%f', '%f', '%d', '%f' )
+			array( '%d', '%s', '%s', '%f' )
 		);
+
+		if ( false === $result ) {
+			error_log( 'Failed to save overlap: ' . $wpdb->last_error );
+		}
+
+		return $result;
 	}
+
+
 
 	/**
 	 * Holt alle Überlappungen für einen Aufenthalt
@@ -441,17 +469,12 @@ class WUE_DB {
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT o.*, 
-                a1.mitglied_id as mitglied_id_1,
-                a2.mitglied_id as mitglied_id_2,
-                u1.display_name as mitglied_name_1,
-                u2.display_name as mitglied_name_2
-        FROM {$wpdb->prefix}wue_aufenthalte_overlapping o
-        LEFT JOIN {$wpdb->prefix}wue_aufenthalte a1 ON o.aufenthalt_id_1 = a1.id
-        LEFT JOIN {$wpdb->prefix}wue_aufenthalte a2 ON o.aufenthalt_id_2 = a2.id
-        LEFT JOIN {$wpdb->users} u1 ON a1.mitglied_id = u1.ID
-        LEFT JOIN {$wpdb->users} u2 ON a2.mitglied_id = u2.ID
-        WHERE aufenthalt_id_1 = %d OR aufenthalt_id_2 = %d",
-				$aufenthalt_id,
+                a.mitglied_id,
+                u.display_name as mitglied_name
+                FROM {$wpdb->prefix}wue_aufenthalte_overlapping o
+                LEFT JOIN {$wpdb->prefix}wue_aufenthalte a ON o.aufenthalt_id = a.id
+                LEFT JOIN {$wpdb->users} u ON a.mitglied_id = u.ID
+                WHERE o.aufenthalt_id = %d",
 				$aufenthalt_id
 			)
 		);
@@ -496,6 +519,48 @@ class WUE_DB {
 			array( 'id' => $aufenthalt_id ),
 			array( '%f', '%d' ),
 			array( '%d' )
+		);
+	}
+
+	/**
+	 * Letzter aufenthalt vor einem bestimmten datum
+	 *
+	 * @param int $aufenthalt_id Die ID des Aufenthalts
+	 * @return bool True bei Erfolg, false bei Fehler
+	 */
+	public function get_last_stay_before_date( $date ) {
+		global $wpdb;
+
+		error_log( 'Looking for last stay before: ' . $date );
+
+		$result = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$wpdb->prefix}wue_aufenthalte 
+            WHERE DATE(abreise) < DATE(%s)
+            ORDER BY abreise DESC 
+            LIMIT 1",
+				$date
+			)
+		);
+
+		error_log( 'SQL Result: ' . print_r( $result, true ) );
+		return $result;
+	}
+	/**
+	 * Holt den frühesten Brennerstand
+	 *
+	 * @return object|null Brennerstand oder null
+	 */
+	public function get_earliest_counter_reading() {
+		global $wpdb;
+		return $wpdb->get_row(
+			"
+            SELECT brennerstunden_ende 
+            FROM {$wpdb->prefix}wue_aufenthalte 
+            WHERE abreise < CURRENT_DATE 
+            ORDER BY abreise ASC 
+            LIMIT 1
+        "
 		);
 	}
 }

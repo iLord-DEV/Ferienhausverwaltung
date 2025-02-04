@@ -8,6 +8,7 @@
  * @package WueNutzerabrechnung
  */
 
+global $wpdb;
 ?>
 <div class="wue-dashboard-widget">
 	<!-- Jahresauswahl -->
@@ -71,31 +72,39 @@
 								<?php
 								$overlaps = WUE()->get_db()->get_overlaps_for_stay( $aufenthalt->id );
 								foreach ( $overlaps as $overlap ) :
-									$other_user = $overlap->aufenthalt_id_1 == $aufenthalt->id ?
-										$overlap->mitglied_name_2 :
-										$overlap->mitglied_name_1;
 									?>
-						<div class="tw-mb-2">
-							<p class="tw-text-sm tw-text-gray-600">
+									<div class="tw-mb-2">
+	<p class="tw-text-sm tw-text-gray-600">
 									<?php
+									// Anzahl der beteiligten Nutzer für diesen Zeitraum ermitteln
+									$num_users = $wpdb->get_var(
+										$wpdb->prepare(
+											"SELECT COUNT(DISTINCT aufenthalt_id) 
+             FROM {$wpdb->prefix}wue_aufenthalte_overlapping 
+             WHERE overlap_start = %s AND overlap_end = %s",
+											$overlap->overlap_start,
+											$overlap->overlap_end
+										)
+									);
+
 									printf(
-										'%s Stunden geteilt mit %s',
+										'%s Stunden geteilt mit %d anderen',
 										number_format( $overlap->shared_hours, 1, ',', '.' ),
-										esc_html( $other_user )
+										max( 0, intval( $num_users ) - 1 )  // -1 weil der aktuelle User nicht mitgezählt wird
 									);
 									?>
-							</p>
-							<p class="tw-text-xs tw-text-gray-500">
-											<?php
-											printf(
-												'vom %s bis %s',
-												date_i18n( get_option( 'date_format' ), strtotime( $overlap->overlap_start ) ),
-												date_i18n( get_option( 'date_format' ), strtotime( $overlap->overlap_end ) )
-											);
-											?>
-							</p>
-						</div>
-								<?php endforeach; ?>
+	</p>
+	<p class="tw-text-xs tw-text-gray-500">
+									<?php
+									printf(
+										'vom %s bis %s',
+										date_i18n( get_option( 'date_format' ), strtotime( $overlap->overlap_start ) ),
+										date_i18n( get_option( 'date_format' ), strtotime( $overlap->overlap_end ) )
+									);
+									?>
+	</p>
+</div>
+									<?php endforeach; ?>
 				</div>
 			</div>
 		<?php endif; ?>

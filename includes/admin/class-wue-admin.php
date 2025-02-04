@@ -74,6 +74,7 @@ class WUE_Admin {
 	 */
 	public function activate_plugin() {
 		$this->db->create_tables();
+		$this->db->update_overlap_table();
 		$this->db->insert_default_prices( gmdate( 'Y' ) );
 		wue_add_capabilities();
 		flush_rewrite_rules();

@@ -206,19 +206,19 @@ class WUE_Helpers {
 				$hours_in_section = $current_point - $last_point;
 				$num_users        = count( $active_stays );
 
-				if ( in_array( $aufenthalt->id, $active_stays ) ) {
-					// Nur wenn der aktuelle Aufenthalt in diesem Abschnitt aktiv ist
+				if ( in_array( $aufenthalt->id, $active_stays ) && $num_users > 0 ) {
 					$shared_hours    = $hours_in_section / $num_users;
 					$adjusted_hours += $shared_hours;
 
 					if ( $num_users > 1 ) {
-						$overlaps[] = array(
-							'aufenthalt_id' => $aufenthalt->id,
-							'brenner_start' => $last_point,
-							'brenner_end'   => $current_point,
-							'num_users'     => $num_users,
-							'shared_hours'  => $shared_hours,
-						);
+						foreach ( $active_stays as $active_id ) {
+							$overlaps[] = array(
+								'aufenthalt_id' => $active_id,
+								'overlap_start' => $aufenthalt->ankunft,
+								'overlap_end'   => $aufenthalt->abreise,
+								'shared_hours'  => $shared_hours,
+							);
+						}
 					}
 				}
 			}
