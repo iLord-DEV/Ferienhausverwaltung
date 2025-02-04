@@ -563,4 +563,18 @@ class WUE_DB {
         "
 		);
 	}
+
+	public function get_first_stay_after_date( $date ) {
+		global $wpdb;
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$wpdb->prefix}wue_aufenthalte 
+                WHERE DATE(ankunft) > DATE(%s)
+                ORDER BY ankunft ASC 
+                LIMIT 1",
+				$date
+			)
+		);
+	}
 }

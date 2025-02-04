@@ -128,7 +128,7 @@ $form_title = $is_edit ? __( 'Aufenthalt bearbeiten', 'wue-nutzerabrechnung' ) :
 				submit_button(
 					$is_edit ? __( 'Änderungen speichern', 'wue-nutzerabrechnung' ) : __( 'Aufenthalt speichern', 'wue-nutzerabrechnung' ),
 					'primary tw-bg-blue-600',
-					'wue_aufenthalt_submit'  // Dies ist der wichtige Teil - der Name des Submit-Buttons
+					'wue_aufenthalt_submit'
 				);
 				?>
 
@@ -142,13 +142,3 @@ $form_title = $is_edit ? __( 'Aufenthalt bearbeiten', 'wue-nutzerabrechnung' ) :
 		</form>
 	</div>
 </div>
-<script>
-	form.addEventListener('submit', function(e) {
-	const startDate = new Date(document.getElementById('ankunft').value);
-	const startReading = parseFloat(document.getElementById('brennerstunden_start').value);
-	
-	if (!confirm(`Bitte prüfen Sie: Ist der Zählerstand ${startReading} für den ${startDate.toLocaleDateString()} korrekt? Ein niedrigerer Stand ist nur möglich, wenn sich die Aufenthalte zeitlich überschneiden.`)) {
-		e.preventDefault();
-	}
-});
-</script>

@@ -559,35 +559,29 @@ class WUE_Aufenthalte {
 	 * @return bool True if the readings are valid, false otherwise.
 	 */
 	private function validate_counter_readings( $new_start, $new_end, $new_date_start, $new_date_end ) {
-		$overlapping = $this->db->find_overlapping_stays( $new_date_start, $new_date_end, 0 );
-		if ( ! empty( $overlapping ) ) {
+		// 1. Prüfe auf zeitliche Überlappungen
+		$overlapping      = $this->db->find_overlapping_stays( $new_date_start, $new_date_end, 0 );
+		$has_time_overlap = ! empty( $overlapping );
+
+		if ( $has_time_overlap ) {
+			// Bei zeitlichen Überlappungen sind auch Zählerstand-Überlappungen ok
 			return true;
 		}
 
+		// 2. Wenn keine Überlappung, prüfe ob der Eintrag in eine zeitliche Lücke passt
 		$previous = $this->db->get_last_stay_before_date( $new_date_start );
-		if ( ! $previous ) {
-			// Kein vorheriger Eintrag -> Zählerstand sollte nahe 0 sein
-			if ( $new_start > 0.1 ) { // kleine Toleranz
-				add_settings_error(
-					'wue_aufenthalt',
-					'invalid_counter',
-					sprintf(
-						__( 'Erster Eintrag muss mit Zählerstand nahe 0 beginnen, nicht bei %1$s.', 'wue-nutzerabrechnung' ),
-						$new_start
-					)
-				);
-				return false;
-			}
-			return true;
-		}
+		$next     = $this->db->get_first_stay_after_date( $new_date_end );
 
-		if ( $previous->brennerstunden_ende > $new_start ) {
+		// Prüfe ob der Zählerstand in die Lücke passt
+		$counter_fits_gap = true;
+
+		if ( $previous && $previous->brennerstunden_ende > $new_start ) {
 			add_settings_error(
 				'wue_aufenthalt',
-				'invalid_counter',
+				'invalid_counter_previous',
 				sprintf(
 					__(
-						'Zählerstand bei Ankunft (%1$s) kann nicht kleiner sein als der letzte Zählerstand (%2$s) vom %3$s.',
+						'Der Zählerstand bei Ankunft (%1$s) kann nicht kleiner sein als der vorherige Stand (%2$s) vom %3$s.',
 						'wue-nutzerabrechnung'
 					),
 					$new_start,
@@ -595,9 +589,27 @@ class WUE_Aufenthalte {
 					wp_date( 'd.m.Y', strtotime( $previous->abreise ) )
 				)
 			);
-			return false;
+			$counter_fits_gap = false;
 		}
-		return true;
+
+		if ( $next && $new_end > $next->brennerstunden_start ) {
+			add_settings_error(
+				'wue_aufenthalt',
+				'invalid_counter_next',
+				sprintf(
+					__(
+						'Der Zählerstand bei Abreise (%1$s) kann nicht größer sein als der nachfolgende Stand (%2$s) vom %3$s.',
+						'wue-nutzerabrechnung'
+					),
+					$new_end,
+					$next->brennerstunden_start,
+					wp_date( 'd.m.Y', strtotime( $next->ankunft ) )
+				)
+			);
+			$counter_fits_gap = false;
+		}
+
+		return $counter_fits_gap;
 	}
 
 	/**
