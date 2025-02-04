@@ -155,79 +155,79 @@ class WUE_Helpers {
 			);
 		}
 
-		// Sammle alle Brennerstände und wer jeweils dabei ist
-		$points = array();
-
-		// Füge eigene Stände hinzu
-		$points[ floatval( $aufenthalt->brennerstunden_start ) ] = array(
+		// Sammle alle eindeutigen Zeitpunkte
+		$points                                      = array();
+		$points[ $aufenthalt->brennerstunden_start ] = array(
 			'type'  => 'start',
 			'stays' => array( $aufenthalt->id ),
 		);
-		$points[ floatval( $aufenthalt->brennerstunden_ende ) ]  = array(
+		$points[ $aufenthalt->brennerstunden_ende ]  = array(
 			'type'  => 'end',
 			'stays' => array( $aufenthalt->id ),
 		);
 
-		// Füge überlappende Stände hinzu
 		foreach ( $overlapping_stays as $stay ) {
-			$start = floatval( $stay->brennerstunden_start );
-			$end   = floatval( $stay->brennerstunden_ende );
-
-			if ( ! isset( $points[ $start ] ) ) {
-				$points[ $start ] = array(
+			if ( ! isset( $points[ $stay->brennerstunden_start ] ) ) {
+				$points[ $stay->brennerstunden_start ] = array(
 					'type'  => 'start',
 					'stays' => array( $stay->id ),
 				);
 			} else {
-				$points[ $start ]['stays'][] = $stay->id;
+				$points[ $stay->brennerstunden_start ]['stays'][] = $stay->id;
 			}
 
-			if ( ! isset( $points[ $end ] ) ) {
-				$points[ $end ] = array(
+			if ( ! isset( $points[ $stay->brennerstunden_ende ] ) ) {
+				$points[ $stay->brennerstunden_ende ] = array(
 					'type'  => 'end',
 					'stays' => array( $stay->id ),
 				);
 			} else {
-				$points[ $end ]['stays'][] = $stay->id;
+				$points[ $stay->brennerstunden_ende ]['stays'][] = $stay->id;
 			}
 		}
 
-		// Sortiere nach Brennerständen
 		ksort( $points );
 
-		// Berechne geteilte Stunden
 		$adjusted_hours = 0;
 		$active_stays   = array();
 		$overlaps       = array();
 		$last_point     = null;
 
-		foreach ( $points as $current_point => $data ) {
-			if ( $last_point !== null ) {
-				$hours_in_section = $current_point - $last_point;
-				$num_users        = count( $active_stays );
+		$point_values = array_keys( $points );
+		for ( $i = 0; $i < count( $point_values ); $i++ ) {
+			$current_point = $point_values[ $i ];
+			$data          = $points[ $current_point ];
 
-				if ( in_array( $aufenthalt->id, $active_stays ) && $num_users > 0 ) {
-					$shared_hours    = $hours_in_section / $num_users;
+			if ( $last_point !== null && in_array( $aufenthalt->id, $active_stays ) ) {
+				$segment_hours = $current_point - $last_point;
+				$num_active    = count( $active_stays );
+
+				if ( $num_active > 0 ) {
+					$shared_hours    = $segment_hours / $num_active;
 					$adjusted_hours += $shared_hours;
 
-					if ( $num_users > 1 ) {
-						foreach ( $active_stays as $active_id ) {
-							$overlaps[] = array(
-								'aufenthalt_id' => $active_id,
-								'overlap_start' => $aufenthalt->ankunft,
-								'overlap_end'   => $aufenthalt->abreise,
-								'shared_hours'  => $shared_hours,
-							);
-						}
+					if ( $num_active > 1 ) {
+						$overlaps[] = array(
+							'aufenthalt_id' => $aufenthalt->id,
+							'overlap_start' => $aufenthalt->ankunft,
+							'overlap_end'   => $aufenthalt->abreise,
+							'shared_hours'  => $shared_hours,
+						);
 					}
 				}
 			}
 
-			// Aktualisiere aktive Aufenthalte
-			if ( $data['type'] === 'start' ) {
-				$active_stays = array_merge( $active_stays, $data['stays'] );
-			} else {
-				$active_stays = array_diff( $active_stays, $data['stays'] );
+			// Update active stays
+			foreach ( $data['stays'] as $stay_id ) {
+				if ( $data['type'] === 'start' ) {
+					$active_stays[] = $stay_id;
+				} else {
+					$key = array_search( $stay_id, $active_stays );
+					if ( $key !== false ) {
+						unset( $active_stays[ $key ] );
+						$active_stays = array_values( $active_stays );
+					}
+				}
 			}
 
 			$last_point = $current_point;

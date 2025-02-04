@@ -178,55 +178,50 @@ class WUE_Aufenthalte {
 			return false;
 		}
 
-		// Erst die Überlappungen finden
-		$overlapping_stays = $this->db->find_overlapping_stays(
+		// Finde alle betroffenen Aufenthalte vor dem Löschen
+		$affected_stays = $this->db->find_overlapping_stays(
 			$aufenthalt->ankunft,
 			$aufenthalt->abreise,
-			$aufenthalt->id
+			$id
 		);
 
-		// Dann die Überlappungen löschen
+		// Lösche Überlappungsdaten
 		$wpdb->delete(
 			$wpdb->prefix . 'wue_aufenthalte_overlapping',
 			array( 'aufenthalt_id' => $id ),
 			array( '%d' )
 		);
 
-		// Aufenthalt löschen
+		// Lösche den Aufenthalt
 		$result = $wpdb->delete(
 			$wpdb->prefix . 'wue_aufenthalte',
 			array( 'id' => $id ),
 			array( '%d' )
 		);
 
-		// Überlappende Aufenthalte aktualisieren
-		if ( $result && ! empty( $overlapping_stays ) ) {
-			foreach ( $overlapping_stays as $stay ) {
+		if ( $result ) {
+			// Setze betroffene Aufenthalte zurück
+			foreach ( $affected_stays as $stay ) {
+				// Prüfe ob noch andere Überlappungen existieren
 				$other_overlapping = $this->db->find_overlapping_stays(
 					$stay->ankunft,
 					$stay->abreise,
 					$stay->id
 				);
 
-				if ( ! empty( $other_overlapping ) ) {
-					$calc_result = WUE_Helpers::calculate_shared_hours( $stay, $other_overlapping );
-					$this->db->update_adjusted_hours(
-						$stay->id,
-						$calc_result['adjusted_hours'],
-						true
-					);
-
-					// Überlappungsdaten neu speichern
-					foreach ( $calc_result['overlaps'] as $overlap ) {
-						$overlap['aufenthalt_id'] = $stay->id;
-						$this->db->save_overlap( $overlap );
-					}
-				} else {
-					// Keine weiteren Überlappungen, auf Normalwerte zurücksetzen
+				if ( empty( $other_overlapping ) ) {
+					// Keine Überlappungen mehr - zurücksetzen
 					$this->db->update_adjusted_hours(
 						$stay->id,
 						floatval( $stay->brennerstunden_ende ) - floatval( $stay->brennerstunden_start ),
 						false
+					);
+
+					// Lösche verbleibende Überlappungseinträge
+					$wpdb->delete(
+						$wpdb->prefix . 'wue_aufenthalte_overlapping',
+						array( 'aufenthalt_id' => $stay->id ),
+						array( '%d' )
 					);
 				}
 			}
