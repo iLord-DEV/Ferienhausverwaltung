@@ -550,66 +550,162 @@ class WUE_Aufenthalte {
 	}
 
 	/**
-	 * Validates the counter readings for a stay.
+	 * Validiert die Brennerstunden-Einträge unter Berücksichtigung von Überlappungen
 	 *
-	 * @param float  $new_start      The new start reading.
-	 * @param float  $new_end        The new end reading.
-	 * @param string $new_date_start The new start date.
-	 * @param string $new_date_end   The new end date.
-	 * @return bool True if the readings are valid, false otherwise.
+	 * @param float  $new_start Neuer Startzählerstand
+	 * @param float  $new_end Neuer Endzählerstand
+	 * @param string $new_date_start Startdatum im MySQL-Format (Y-m-d H:i:s)
+	 * @param string $new_date_end Enddatum im MySQL-Format (Y-m-d H:i:s)
+	 * @return bool True wenn valid, false wenn nicht
 	 */
 	private function validate_counter_readings( $new_start, $new_end, $new_date_start, $new_date_end ) {
-		// 1. Prüfe auf zeitliche Überlappungen
-		$overlapping      = $this->db->find_overlapping_stays( $new_date_start, $new_date_end, 0 );
-		$has_time_overlap = ! empty( $overlapping );
-
-		if ( $has_time_overlap ) {
-			// Bei zeitlichen Überlappungen sind auch Zählerstand-Überlappungen ok
-			return true;
-		}
-
-		// 2. Wenn keine Überlappung, prüfe ob der Eintrag in eine zeitliche Lücke passt
-		$previous = $this->db->get_last_stay_before_date( $new_date_start );
-		$next     = $this->db->get_first_stay_after_date( $new_date_end );
-
-		// Prüfe ob der Zählerstand in die Lücke passt
-		$counter_fits_gap = true;
-
-		if ( $previous && $previous->brennerstunden_ende > $new_start ) {
+		// Basis-Validierung: Ende muss größer als Start sein
+		if ( $new_end <= $new_start ) {
 			add_settings_error(
 				'wue_aufenthalt',
-				'invalid_counter_previous',
-				sprintf(
-					__(
-						'Der Zählerstand bei Ankunft (%1$s) kann nicht kleiner sein als der vorherige Stand (%2$s) vom %3$s.',
-						'wue-nutzerabrechnung'
-					),
-					$new_start,
-					$previous->brennerstunden_ende,
-					wp_date( 'd.m.Y', strtotime( $previous->abreise ) )
-				)
+				'invalid_counter_sequence',
+				__( 'Der Endzählerstand muss größer als der Startzählerstand sein.', 'wue-nutzerabrechnung' )
 			);
-			$counter_fits_gap = false;
+			return false;
 		}
 
-		if ( $next && $new_end > $next->brennerstunden_start ) {
-			add_settings_error(
-				'wue_aufenthalt',
-				'invalid_counter_next',
-				sprintf(
-					__(
-						'Der Zählerstand bei Abreise (%1$s) kann nicht größer sein als der nachfolgende Stand (%2$s) vom %3$s.',
-						'wue-nutzerabrechnung'
-					),
-					$new_end,
-					$next->brennerstunden_start,
-					wp_date( 'd.m.Y', strtotime( $next->ankunft ) )
-				)
-			);
-			$counter_fits_gap = false;
+		// 1. Prüfe zunächst, ob die neuen Brennerstunden mit existierenden Aufenthalten überlappen
+		$all_stays = $this->db->get_all_stays_for_period( $new_start, $new_end );
+
+		foreach ( $all_stays as $stay ) {
+			$stay_start = floatval( $stay->brennerstunden_start );
+			$stay_end   = floatval( $stay->brennerstunden_ende );
+
+			// Prüfe ob Brennerstunden überlappen
+			$counters_overlap = ! ( $new_start > $stay_end || $new_end < $stay_start );
+
+			if ( $counters_overlap ) {
+				// Wenn Brennerstunden überlappen, muss auch die Zeit überlappen
+				// oder es muss ein nahtloser Übergang am selben Tag sein
+				$same_day_transition = (
+				substr( $new_date_end, 0, 10 ) === substr( $stay->ankunft, 0, 10 ) ||
+				substr( $new_date_start, 0, 10 ) === substr( $stay->abreise, 0, 10 )
+				);
+
+				$dates_overlap = ! ( strtotime( $new_date_end ) < strtotime( $stay->ankunft ) ||
+							strtotime( $new_date_start ) > strtotime( $stay->abreise ) );
+
+				if ( ! $dates_overlap && ! $same_day_transition ) {
+					add_settings_error(
+						'wue_aufenthalt',
+						'invalid_overlap_logic',
+						sprintf(
+							__(
+								'Die Brennerstunden (%1$.1f h bis %2$.1f h) überlappen mit einem Aufenthalt (%3$.1f h bis %4$.1f h) vom %5$s bis %6$s, aber die Zeiträume überlappen nicht. Überlappende Brennerstunden können nur bei überlappender Anwesenheit oder Übergängen am selben Tag entstehen.',
+								'wue-nutzerabrechnung'
+							),
+							$new_start,
+							$new_end,
+							$stay_start,
+							$stay_end,
+							wp_date( 'd.m.Y', strtotime( $stay->ankunft ) ),
+							wp_date( 'd.m.Y', strtotime( $stay->abreise ) )
+						)
+					);
+					return false;
+				}
+
+				// Prüfe auf unmögliche Sprünge im Zählerstand
+				if ( $counters_overlap && abs( $new_start - $stay_end ) > 0.1 && $same_day_transition ) {
+					add_settings_error(
+						'wue_aufenthalt',
+						'invalid_counter_jump',
+						sprintf(
+							__(
+								'Der Zählerstand ändert sich zu stark (%1$.1f h zu %2$.1f h) für einen Übergang am selben Tag.',
+								'wue-nutzerabrechnung'
+							),
+							$stay_end,
+							$new_start
+						)
+					);
+					return false;
+				}
+			}
 		}
 
-		return $counter_fits_gap;
+		// 2. Prüfe zeitlich überlappende Aufenthalte
+		$overlapping = $this->db->find_overlapping_stays( $new_date_start, $new_date_end, 0 );
+
+		if ( ! empty( $overlapping ) ) {
+			foreach ( $overlapping as $overlap ) {
+				$overlap_start = floatval( $overlap->brennerstunden_start );
+				$overlap_end   = floatval( $overlap->brennerstunden_ende );
+
+				// Bei Anreise am Abreisetag des anderen muss der Startzählerstand
+				// dem Endzählerstand des anderen entsprechen oder überlappen
+				$is_departure_day_arrival = substr( $overlap->abreise, 0, 10 ) === substr( $new_date_start, 0, 10 );
+				$is_arrival_day_departure = substr( $overlap->ankunft, 0, 10 ) === substr( $new_date_end, 0, 10 );
+
+				if ( $is_departure_day_arrival ) {
+					// Startzählerstand muss "ungefähr" gleich Endzählerstand des anderen sein
+					if ( abs( $new_start - $overlap_end ) > 0.1 ) {
+						add_settings_error(
+							'wue_aufenthalt',
+							'invalid_counter_connection',
+							sprintf(
+								__(
+									'Bei Anreise am Abreisetag eines anderen Aufenthalts muss der Startzählerstand (%1$.1f h) dem Endzählerstand (%2$.1f h) des anderen entsprechen.',
+									'wue-nutzerabrechnung'
+								),
+								$new_start,
+								$overlap_end
+							)
+						);
+						return false;
+					}
+					continue;
+				}
+
+				if ( $is_arrival_day_departure ) {
+					// Endzählerstand muss "ungefähr" gleich Startzählerstand des anderen sein
+					if ( abs( $new_end - $overlap_start ) > 0.1 ) {
+						add_settings_error(
+							'wue_aufenthalt',
+							'invalid_counter_connection',
+							sprintf(
+								__(
+									'Bei Abreise am Anreisetag eines anderen Aufenthalts muss der Endzählerstand (%1$.1f h) dem Startzählerstand (%2$.1f h) des anderen entsprechen.',
+									'wue-nutzerabrechnung'
+								),
+								$new_end,
+								$overlap_start
+							)
+						);
+						return false;
+					}
+					continue;
+				}
+
+				// Bei "echten" zeitlichen Überlappungen müssen die Zählerstände verbunden sein
+				if ( $new_start > $overlap_end || $new_end < $overlap_start ) {
+					add_settings_error(
+						'wue_aufenthalt',
+						'invalid_counter_overlap',
+						sprintf(
+							__(
+								'Bei zeitlich überlappenden Aufenthalten müssen die Brennerstunden verbunden sein. Der Bereich %1$.1f h bis %2$.1f h ist nicht verbunden mit dem Bereich %3$.1f h bis %4$.1f h des Aufenthalts von %5$s bis %6$s.',
+								'wue-nutzerabrechnung'
+							),
+							$new_start,
+							$new_end,
+							$overlap_start,
+							$overlap_end,
+							wp_date( 'd.m.Y', strtotime( $overlap->ankunft ) ),
+							wp_date( 'd.m.Y', strtotime( $overlap->abreise ) )
+						)
+					);
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	/**

@@ -15,13 +15,35 @@ defined( 'ABSPATH' ) || exit;
 	<div class="tw-grid md:tw-grid-cols-3 tw-gap-6 tw-mb-8">
 		<!-- Ölverbrauch -->
 		<div class="tw-bg-white tw-rounded-lg tw-p-6 tw-shadow-sm">
-			<h3 class="tw-text-sm tw-font-medium tw-text-gray-500 tw-mb-2">
-				<?php esc_html_e( 'Ölverbrauch aktuelles Jahr', 'wue-nutzerabrechnung' ); ?>
-			</h3>
-			<p class="tw-text-3xl tw-font-semibold">
-				<?php echo esc_html( number_format( $yearly_stats['oil_consumption'], 1 ) ); ?> L
-			</p>
+	<h3 class="tw-text-sm tw-font-medium tw-text-gray-500 tw-mb-4">
+		<?php esc_html_e( 'Ölverbrauch aktuelles Jahr', 'wue-nutzerabrechnung' ); ?>
+	</h3>
+	<div class="tw-space-y-3">
+		<p class="tw-text-3xl tw-font-semibold">
+			<?php echo esc_html( number_format( $yearly_stats['oil_consumption'], 1 ) ); ?> L
+		</p>
+		<div class="tw-space-y-2">
+			<div class="tw-flex tw-justify-between tw-items-center tw-text-sm">
+				<span class="tw-text-gray-600"><?php esc_html_e( 'Eigener Verbrauch', 'wue-nutzerabrechnung' ); ?></span>
+				<span class="tw-font-medium">
+					<?php echo esc_html( number_format( $yearly_stats['own_consumption'], 1 ) ); ?> L
+				</span>
+			</div>
+			<div class="tw-flex tw-justify-between tw-items-center tw-text-sm">
+				<span class="tw-text-gray-600"><?php esc_html_e( 'Verbrauch andere', 'wue-nutzerabrechnung' ); ?></span>
+				<span class="tw-font-medium">
+					<?php echo esc_html( number_format( $yearly_stats['others_consumption'], 1 ) ); ?> L
+				</span>
+			</div>
+			<div class="tw-flex tw-justify-between tw-items-center tw-text-sm">
+				<span class="tw-text-gray-600"><?php esc_html_e( 'In Abwesenheit', 'wue-nutzerabrechnung' ); ?></span>
+				<span class="tw-font-medium">
+					<?php echo esc_html( number_format( $yearly_stats['absent_consumption'], 1 ) ); ?> L
+				</span>
+			</div>
 		</div>
+	</div>
+</div>
 
 		<!-- Übernachtungen -->
 		<div class="tw-bg-white tw-rounded-lg tw-p-6 tw-shadow-sm">

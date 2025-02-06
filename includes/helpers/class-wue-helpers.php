@@ -67,6 +67,7 @@ class WUE_Helpers {
 		}
 
 		return array(
+
 			'brennerstunden' => number_format( $total_brennerstunden, 1, ',', '.' ),
 			'oelkosten'      => number_format( $total_oelkosten, 2, ',', '.' ) . ' €',
 			'mitglieder'     => sprintf(
@@ -113,26 +114,28 @@ class WUE_Helpers {
 
 		return array(
 			// Original-Werte für Berechnungen
-			'brennerstunden'    => number_format( $brennerstunden, 1, ',', '.' ) . ' h' .
+			'brennerstunden'       => number_format( $brennerstunden, 1, ',', '.' ) . ' h' .
 				( $aufenthalt->has_overlaps ? '*' : '' ),
-			'oelkosten'         => number_format( $oelkosten, 2, ',', '.' ) . ' €',
-			'oelkosten_raw'     => $oelkosten, // Für Summenbildung
-			'anzahl_mitglieder' => intval( $aufenthalt->anzahl_mitglieder ),
-			'mitglieder_kosten' => $mitglieder_kosten,
-			'anzahl_gaeste'     => intval( $aufenthalt->anzahl_gaeste ),
-			'gaeste_kosten'     => $gaeste_kosten,
-			'gesamt'            => number_format( $oelkosten + $mitglieder_kosten + $gaeste_kosten, 2, ',', '.' ) . ' €',
-			'edit_url'          => self::get_edit_url( $aufenthalt->id ),
-			'has_overlaps'      => ! empty( $aufenthalt->has_overlaps ),
+			'brennerstunden_start' => number_format( floatval( $aufenthalt->brennerstunden_start ), 1, ',', '.' ) . ' h',
+			'brennerstunden_ende'  => number_format( floatval( $aufenthalt->brennerstunden_ende ), 1, ',', '.' ) . ' h',
+			'oelkosten'            => number_format( $oelkosten, 2, ',', '.' ) . ' €',
+			'oelkosten_raw'        => $oelkosten, // Für Summenbildung
+			'anzahl_mitglieder'    => intval( $aufenthalt->anzahl_mitglieder ),
+			'mitglieder_kosten'    => $mitglieder_kosten,
+			'anzahl_gaeste'        => intval( $aufenthalt->anzahl_gaeste ),
+			'gaeste_kosten'        => $gaeste_kosten,
+			'gesamt'               => number_format( $oelkosten + $mitglieder_kosten + $gaeste_kosten, 2, ',', '.' ) . ' €',
+			'edit_url'             => self::get_edit_url( $aufenthalt->id ),
+			'has_overlaps'         => ! empty( $aufenthalt->has_overlaps ),
 
 			// Formatierte Werte für die Tabelle
-			'datum'             => $ankunft . ' - ' . $abreise,
-			'mitglieder'        => sprintf(
+			'datum'                => $ankunft . ' - ' . $abreise,
+			'mitglieder'           => sprintf(
 				'%d × %s €',
 				intval( $aufenthalt->anzahl_mitglieder ),
 				number_format( $prices->uebernachtung_mitglied, 2, ',', '.' )
 			),
-			'gaeste'            => sprintf(
+			'gaeste'               => sprintf(
 				'%d × %s €',
 				intval( $aufenthalt->anzahl_gaeste ),
 				number_format( $prices->uebernachtung_gast, 2, ',', '.' )

@@ -227,43 +227,7 @@ class WUE_DB {
 		);
 	}
 
-	/**
-	 * Holt Statistiken für ein Jahr
-	 *
-	 * @param int $year Das Jahr für die Statistiken
-	 * @return array Array mit statistischen Daten
-	 */
-	public function get_yearly_statistics( $year ) {
-		global $wpdb;
 
-		$stats = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT 
-                SUM(brennerstunden_ende - brennerstunden_start) as total_brennerstunden,
-                SUM(anzahl_mitglieder) as member_nights,
-                SUM(anzahl_gaeste) as guest_nights
-            FROM {$wpdb->prefix}wue_aufenthalte 
-            WHERE YEAR(ankunft) = %d",
-				$year
-			),
-			ARRAY_A
-		);
-
-		if ( ! $stats ) {
-			return array(
-				'total_brennerstunden' => 0,
-				'member_nights'        => 0,
-				'guest_nights'         => 0,
-				'oil_consumption'      => 0,
-			);
-		}
-
-		$prices                   = $this->get_prices_for_year( $year );
-		$stats['oil_consumption'] = $stats['total_brennerstunden'] *
-			( $prices ? $prices->verbrauch_pro_brennerstunde : 0 );
-
-		return $stats;
-	}
 
 	/**
 	 * Holt die Preise für ein bestimmtes Jahr
@@ -463,18 +427,34 @@ class WUE_DB {
 	 * @param int $aufenthalt_id Die ID des Aufenthalts
 	 * @return array Array mit Überlappungsdaten
 	 */
+	/**
+	 * Holt alle Überlappungen für einen Aufenthalt
+	 *
+	 * @param int $aufenthalt_id Die ID des Aufenthalts
+	 * @return array Array mit Überlappungsdaten
+	 */
 	public function get_overlaps_for_stay( $aufenthalt_id ) {
 		global $wpdb;
 
 		return $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT o.*, 
-                a.mitglied_id,
-                u.display_name as mitglied_name
-                FROM {$wpdb->prefix}wue_aufenthalte_overlapping o
-                LEFT JOIN {$wpdb->prefix}wue_aufenthalte a ON o.aufenthalt_id = a.id
-                LEFT JOIN {$wpdb->users} u ON a.mitglied_id = u.ID
-                WHERE o.aufenthalt_id = %d",
+				"SELECT o.*,
+                (SELECT COUNT(DISTINCT a2.mitglied_id)
+                FROM {$wpdb->prefix}wue_aufenthalte a2
+                WHERE a2.ankunft <= o.overlap_end 
+                AND a2.abreise >= o.overlap_start
+                AND a2.id != %d) as num_other_users,
+                GROUP_CONCAT(DISTINCT u.display_name) as user_names
+            FROM {$wpdb->prefix}wue_aufenthalte_overlapping o
+            JOIN {$wpdb->prefix}wue_aufenthalte a ON o.aufenthalt_id = a.id
+            LEFT JOIN {$wpdb->prefix}wue_aufenthalte a2 ON 
+                a2.ankunft <= o.overlap_end AND 
+                a2.abreise >= o.overlap_start AND
+                a2.id != a.id
+            LEFT JOIN {$wpdb->users} u ON a2.mitglied_id = u.ID
+            WHERE o.aufenthalt_id = %d
+            GROUP BY o.id",
+				$aufenthalt_id,
 				$aufenthalt_id
 			)
 		);
@@ -575,6 +555,118 @@ class WUE_DB {
                 LIMIT 1",
 				$date
 			)
+		);
+	}
+
+	public function get_all_stays_for_period( $counter_start, $counter_end ) {
+		global $wpdb;
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * 
+                FROM {$wpdb->prefix}wue_aufenthalte 
+                WHERE (
+                    brennerstunden_start <= %f AND brennerstunden_ende >= %f
+                    OR
+                    (brennerstunden_start BETWEEN %f AND %f)
+                    OR
+                    (brennerstunden_ende BETWEEN %f AND %f)
+                )",
+				$counter_end,
+				$counter_start,
+				$counter_start,
+				$counter_end,
+				$counter_start,
+				$counter_end
+			)
+		);
+	}
+
+	/**
+	 * Holt erweiterte Statistiken für ein Jahr
+	 *
+	 * @param int      $year Das Jahr für die Statistiken
+	 * @param int|null $user_id Optional. Benutzer ID für eigene Statistiken
+	 * @return array Array mit statistischen Daten
+	 */
+	public function get_yearly_statistics( $year, $user_id = null ) {
+		global $wpdb;
+
+		if ( ! $user_id ) {
+			$user_id = get_current_user_id();
+		}
+
+		// Hole alle Aufenthalte des Jahres, sortiert nach Ankunft
+		$aufenthalte = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT *, 
+                    CASE 
+                        WHEN has_overlaps = 1 THEN adjusted_hours
+                        ELSE (brennerstunden_ende - brennerstunden_start)
+                    END as effective_hours
+                FROM {$wpdb->prefix}wue_aufenthalte 
+                WHERE YEAR(ankunft) = %d 
+                ORDER BY ankunft ASC",
+				$year
+			)
+		);
+
+		$stats = array(
+			'member_nights' => 0,
+			'guest_nights'  => 0,
+			'own_hours'     => 0,
+			'others_hours'  => 0,
+			'absent_hours'  => 0,
+		);
+
+		$prev_end     = null;
+		$prev_brenner = null;
+
+		foreach ( $aufenthalte as $aufenthalt ) {
+			// Normale Statistiken
+			$hours                   = floatval( $aufenthalt->effective_hours );
+			$stats['member_nights'] += $aufenthalt->anzahl_mitglieder;
+			$stats['guest_nights']  += $aufenthalt->anzahl_gaeste;
+
+			// Nutzer-spezifische Stunden
+			if ( $aufenthalt->mitglied_id == $user_id ) {
+				$stats['own_hours'] += $hours;
+			} else {
+				$stats['others_hours'] += $hours;
+			}
+
+			// Prüfe auf Abwesenheit
+			if ( $prev_end && $prev_brenner !== null ) {
+				$gap_start = strtotime( $prev_end );
+				$gap_end   = strtotime( $aufenthalt->ankunft );
+
+				if ( $gap_end > $gap_start &&
+					floatval( $aufenthalt->brennerstunden_start ) > floatval( $prev_brenner ) ) {
+					$stats['absent_hours'] +=
+						floatval( $aufenthalt->brennerstunden_start ) - floatval( $prev_brenner );
+				}
+			}
+
+			$prev_end     = $aufenthalt->abreise;
+			$prev_brenner = $aufenthalt->brennerstunden_ende;
+		}
+
+		// Hole die Preise für das Jahr
+		$prices               = $this->get_prices_for_year( $year );
+		$verbrauch_pro_stunde = $prices ? $prices->verbrauch_pro_brennerstunde : 0;
+
+		// Berechne die Verbrauchswerte
+		$own_consumption    = $stats['own_hours'] * $verbrauch_pro_stunde;
+		$others_consumption = $stats['others_hours'] * $verbrauch_pro_stunde;
+		$absent_consumption = $stats['absent_hours'] * $verbrauch_pro_stunde;
+
+		return array(
+			'member_nights'      => $stats['member_nights'],
+			'guest_nights'       => $stats['guest_nights'],
+			'oil_consumption'    => $own_consumption + $others_consumption + $absent_consumption,
+			'own_consumption'    => $own_consumption,
+			'others_consumption' => $others_consumption,
+			'absent_consumption' => $absent_consumption,
 		);
 	}
 }
