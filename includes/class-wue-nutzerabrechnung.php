@@ -68,6 +68,20 @@ class WUE_Nutzerabrechnung {
 	private $preise;
 
 	/**
+	 * Statistics-Instanz
+	 *
+	 * @var WUE_Statistics
+	 */
+	private $statistics;
+
+	/**
+	 * OpenWeather-Instanz
+	 *
+	 * @var WUE_OpenWeather
+	 */
+	private $weather;
+
+	/**
 	 * Konstruktor
 	 */
 	private function __construct() {
@@ -105,6 +119,8 @@ class WUE_Nutzerabrechnung {
 			'core/class-wue-aufenthalte.php',
 			'core/class-wue-tankfuellungen.php',
 			'core/class-wue-preise.php',
+			'core/class-wue-statistics.php',
+			'core/class-wue-openweather.php',
 		);
 
 		// Datenbank-Klassen
@@ -147,6 +163,11 @@ class WUE_Nutzerabrechnung {
 		// Admin-Komponenten
 		$this->admin     = new WUE_Admin();
 		$this->dashboard = new WUE_Dashboard();
+
+		// statisitcs-Komponenten
+		$this->statistics = new WUE_Statistics();
+
+		$this->weather = new WUE_OpenWeather();
 
 		// Aktivierungshook registrieren
 		register_activation_hook( WUE_PLUGIN_FILE, array( $this->admin, 'activate_plugin' ) );
@@ -193,5 +214,24 @@ class WUE_Nutzerabrechnung {
 	 */
 	public function get_preise() {
 		return $this->preise;
+	}
+
+	/**
+	 * Getter für die Statistics-Instanz
+	 *
+	 * @return WUE_Statistics
+	 */
+	public function get_statistics() {
+
+		return $this->statistics;
+	}
+
+	/**
+	 * Getter für die Weather-Instanz
+	 *
+	 * @return WUE_OpenWeather
+	 */
+	public function get_weather() {
+		return $this->weather;
 	}
 }

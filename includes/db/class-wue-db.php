@@ -152,6 +152,19 @@ class WUE_DB {
         KEY datum (datum)
     ) $charset_collate;";
 
+		$sql_weather = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wue_weather_data (
+    id mediumint(9) NOT NULL AUTO_INCREMENT,
+    date date NOT NULL,
+    temp_avg decimal(5,2) NOT NULL,
+    temp_min decimal(5,2) NOT NULL,
+    temp_max decimal(5,2) NOT NULL,
+    humidity_avg decimal(5,2),
+    precipitation decimal(5,2),
+    updated_at datetime DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY  (id),
+    UNIQUE KEY date (date)
+) $charset_collate;";
+
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 		// Tabellen erstellen/aktualisieren
@@ -159,6 +172,7 @@ class WUE_DB {
 		dbDelta( $sql_aufenthalte );
 		dbDelta( $sql_tankfuellungen );
 		dbDelta( $sql_overlapping );
+		dbDelta( $sql_weather );
 
 		// Überprüfen ob die neuen Spalten in der Aufenthalte-Tabelle existieren
 		$aufenthalte_columns = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}wue_aufenthalte" );
@@ -667,6 +681,171 @@ class WUE_DB {
 			'own_consumption'    => $own_consumption,
 			'others_consumption' => $others_consumption,
 			'absent_consumption' => $absent_consumption,
+		);
+	}
+
+	/**
+	 * Holt den monatlichen Verbrauch für ein Jahr
+	 *
+	 * @param int $year Das Jahr
+	 * @return array Monatliche Verbrauchswerte
+	 */
+	public function get_monthly_consumption( $year ) {
+		global $wpdb;
+
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT 
+                MONTH(ankunft) as month,
+                SUM(CASE 
+                    WHEN has_overlaps = 1 THEN adjusted_hours
+                    ELSE (brennerstunden_ende - brennerstunden_start)
+                END) as total_hours
+            FROM {$wpdb->prefix}wue_aufenthalte
+            WHERE YEAR(ankunft) = %d
+            GROUP BY MONTH(ankunft)
+            ORDER BY month ASC",
+				$year
+			)
+		);
+
+		// Array mit 12 Monaten initialisieren
+		$monthly_data = array_fill( 0, 12, 0 );
+
+		// Daten einfüllen
+		foreach ( $results as $row ) {
+			$month_index                  = intval( $row->month ) - 1;
+			$monthly_data[ $month_index ] = floatval( $row->total_hours );
+		}
+
+		return $monthly_data;
+	}
+
+	/**
+	 * Holt die Verbrauchsdaten gruppiert nach Gruppengröße
+	 *
+	 * @return array Verbrauchsdaten nach Gruppengröße
+	 */
+	public function get_consumption_by_group_size() {
+		global $wpdb;
+
+		return $wpdb->get_results(
+			"SELECT 
+                (anzahl_mitglieder + anzahl_gaeste) as group_size,
+                AVG(CASE 
+                    WHEN has_overlaps = 1 THEN adjusted_hours
+                    ELSE (brennerstunden_ende - brennerstunden_start)
+                END) / (anzahl_mitglieder + anzahl_gaeste) as consumption_per_person
+            FROM {$wpdb->prefix}wue_aufenthalte
+            WHERE (anzahl_mitglieder + anzahl_gaeste) > 0
+            GROUP BY (anzahl_mitglieder + anzahl_gaeste)
+            ORDER BY group_size ASC"
+		);
+	}
+
+	/**
+	 * Speichert oder aktualisiert Wetterdaten
+	 *
+	 * @param array $data Die Wetterdaten
+	 * @return bool|int False bei Fehler, Insert ID bei Erfolg
+	 */
+	public function save_weather_data( $data ) {
+		global $wpdb;
+
+		// Prüfe ob bereits Daten für das Datum existieren
+		$existing = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT id FROM {$wpdb->prefix}wue_weather_data WHERE date = %s",
+				$data['date']
+			)
+		);
+
+		if ( $existing ) {
+			// Update
+			return $wpdb->update(
+				$wpdb->prefix . 'wue_weather_data',
+				$data,
+				array( 'date' => $data['date'] ),
+				array( '%s', '%f', '%f', '%f', '%f', '%f' ),
+				array( '%s' )
+			);
+		}
+
+		// Insert
+		return $wpdb->insert(
+			$wpdb->prefix . 'wue_weather_data',
+			$data,
+			array( '%s', '%f', '%f', '%f', '%f', '%f' )
+		);
+	}
+
+	/**
+	 * Holt die Verbrauchs-Temperatur-Korrelation
+	 *
+	 * @param int $year Optional. Jahr für die Analyse
+	 * @return array Korrelationsdaten
+	 */
+	public function get_consumption_temperature_correlation( $year = null ) {
+		global $wpdb;
+
+		$year_condition = '';
+		if ( $year ) {
+			$year_condition = $wpdb->prepare( 'AND YEAR(a.ankunft) = %d', $year );
+		}
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT 
+                w.temp_avg,
+                AVG(CASE 
+                    WHEN a.has_overlaps = 1 THEN a.adjusted_hours
+                    ELSE (a.brennerstunden_ende - a.brennerstunden_start)
+                END) * p.verbrauch_pro_brennerstunde as avg_consumption,
+                COUNT(*) as num_stays,
+                AVG(a.anzahl_mitglieder + a.anzahl_gaeste) as avg_group_size
+            FROM {$wpdb->prefix}wue_aufenthalte a
+            JOIN {$wpdb->prefix}wue_weather_data w ON DATE(a.ankunft) = w.date
+            JOIN {$wpdb->prefix}wue_preise p ON YEAR(a.ankunft) = p.jahr
+            WHERE 1=1 {$year_condition}
+            GROUP BY w.temp_avg
+            HAVING num_stays >= 3
+            ORDER BY w.temp_avg ASC"
+			)
+		);
+	}
+
+	/**
+	 * Holt die durchschnittliche Temperatur für einen Zeitraum
+	 */
+	public function get_average_temperature_for_period( $start_date, $end_date ) {
+		global $wpdb;
+
+		return $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT AVG(temp_avg)
+            FROM {$wpdb->prefix}wue_weather_data
+            WHERE date BETWEEN %s AND %s",
+				$start_date,
+				$end_date
+			)
+		);
+	}
+
+	/**
+	 * Holt die Wetterdaten für einen Zeitraum
+	 */
+	public function get_weather_data_for_period( $start_date, $end_date ) {
+		global $wpdb;
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT *
+            FROM {$wpdb->prefix}wue_weather_data
+            WHERE date BETWEEN %s AND %s
+            ORDER BY date ASC",
+				$start_date,
+				$end_date
+			)
 		);
 	}
 }

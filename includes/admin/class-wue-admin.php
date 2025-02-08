@@ -67,6 +67,14 @@ class WUE_Admin {
 				WUE_VERSION
 			);
 		}
+
+		wp_enqueue_script(
+			'chart-js',
+			WUE_PLUGIN_URL . 'assets/vendor/chartjs/chart.js',
+			array(),
+			'4.4.1',
+			true
+		);
 	}
 
 	/**
